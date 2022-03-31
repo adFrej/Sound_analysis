@@ -242,7 +242,7 @@ app.layout = html.Div(children=[
                            id='frame-size-in',
                            value='20',
                            type='number',
-                           min=1,
+                           min=5,
                            style={'width': '50px'},),
                        ]),
 
@@ -250,6 +250,8 @@ app.layout = html.Div(children=[
 
     dcc.Graph(
         id='time-graph',),
+
+    html.H3('Choose frame:'),
 
     dcc.Slider(
         min=0,
@@ -259,43 +261,67 @@ app.layout = html.Div(children=[
         id='frame-slider'
     ),
 
+    html.H2('Frame-level statistics:'),
+
     dash.dash_table.DataTable(
-        id='table',
+        id='table-frame',
         data=[],
         style_cell={'textAlign': 'center', 'width': '25%'},
     ),
+
+    html.H2('Clip-level statistics:'),
+
+    dash.dash_table.DataTable(
+        id='table-gen',
+        data=[],
+        style_cell={'textAlign': 'center', 'width': '25%'},
+    ),
+
+    html.H2('Frame-level statistics over time:'),
 
     dcc.Dropdown(['Volume', 'ZCR', 'STE'], id='param-dropdown'),
 
     dcc.Graph(
         id='param-graph',
     ),
+
+    html.Button(
+        'Download statistics to csv',
+        id='download-button',
+    ),
 ])
 
+
 sample_rate, samples = None, None
+frame_size_global = 20
+file_name_global = None
 
 
-@ app.callback(
+@app.callback(
     Output('time-graph', 'figure'),
     Output('frame-size-out', 'children'),
     Output('frame-slider', 'max'),
-    Output('table', 'data'),
+    Output('table-frame', 'data'),
     Output('frame-slider', 'value'),
+    Output('table-gen', 'data'),
+    Output('download-button', 'n_clicks'),
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
     Input('frame-slider', 'value'),
     Input('frame-size-in', 'value'),
-
 )
 def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size):
-    global sample_rate, samples
+    global sample_rate, samples, frame_size_global, file_name_global
     frame_pos = int(frame_pos)
     frame_size = int(frame_size)
+    frame_size_global = frame_size
     time_graph = {}
     n_frames = 0
-    table_data = []
+    table_frame_data = []
+    table_gen_data = []
     if list_of_contents is not None:
+        file_name_global = list_of_names
         content_type, content_string = list_of_contents.split(',')
         file = base64.b64decode(content_string)
         file = io.BytesIO(file)
@@ -309,14 +335,20 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         time_graph = draw_audio(samples, sample_rate, list_of_names, [
             frame_pos*frame_size, (frame_pos+1)*frame_size])
 
-        table_data = [{'Volume': volume(samples, sample_rate, frame_size)[frame_pos],
-                       'STE': ste(samples, sample_rate, frame_size)[frame_pos],
-                       'ZCR': zcr(samples, sample_rate, frame_size)[frame_pos],
+        table_frame_data = [{'Volume': volume(samples, sample_rate, frame_size)[frame_pos],
+                       'STE - Short Time Energy': ste(samples, sample_rate, frame_size)[frame_pos],
+                       'ZCR - Zero Crossing Rate': zcr(samples, sample_rate, frame_size)[frame_pos],
                        'Silent': sr(samples, sample_rate, frame_size)[frame_pos]}]
-    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1, table_data, frame_pos
+
+        table_gen_data = [{'VDR - Volume Dynamic Range': vdr(samples, sample_rate, frame_size),
+                       'Mean Volume': mean(samples, sample_rate, frame_size),
+                       'VSTD': std(samples, sample_rate, frame_size),
+                       'LSTR - Low Short Time Energy Ratio': lster(samples, sample_rate, frame_size)}]
+    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1, \
+           table_frame_data, frame_pos, table_gen_data, None
 
 
-@ app.callback(
+@app.callback(
     Output('param-graph', 'figure'),
     Input('param-dropdown', 'value'),
     Input('frame-size-in', 'value'),
@@ -329,10 +361,46 @@ def draw_param_graph(value, frame_size, frame_pos):
     frame_pos = int(frame_pos)
     if sample_rate is not None and samples is not None and value is not None:
         dict = {'Volume': volume, 'ZCR': zcr, 'STE': ste}
-        graph = draw_plot(dict[value](
-            samples, sample_rate, frame_size), value, frame_pos)
+        graph = draw_plot(dict[value](samples, sample_rate, frame_size), value, frame_pos)
     return graph
 
+@app.callback(
+    Output('download-button', 'style'),
+    Input('download-button', 'n_clicks'),
+)
+def button_on_click(n_clicks):
+    global sample_rate, samples, frame_size_global, file_name_global
+    if n_clicks == None:
+        button_style = {
+            'width': '50%',
+            'height': '40px',
+            'lineHeight': '40px',
+            'borderWidth': '1px',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'display': 'block',
+            'margin-left': 'auto',
+            'margin-right': 'auto',
+            'margin-top': '10px',
+            'margin-bottom': '10px',
+        }
+    else:
+        button_style = {
+            'width': '50%',
+            'height': '40px',
+            'borderWidth': '1px',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'display': 'block',
+            'margin-left': 'auto',
+            'margin-right': 'auto',
+            'margin-top': '10px',
+            'margin-bottom': '10px',
+            'background-color': 'DeepSkyBlue',
+        }
+        if samples is not None and sample_rate is not None:
+            saveCSV(samples, sample_rate, frame_size_global, str.replace(file_name_global, '.wav', '.csv'))
+    return button_style
 
 port = 8050
 
@@ -349,7 +417,7 @@ if __name__ == '__main__':
     # print(zcr(rate, samples))
     # print(sr(rate, samples))
     # draw_audio(samples).show()
-    debug()
+    # debug()
 
     # open_browser()
-    # app.run_server(debug=True)
+    app.run_server(debug=True)
