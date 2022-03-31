@@ -262,6 +262,15 @@ app.layout = html.Div(children=[
                            style={'width': '50px'},),
                        ]),
 
+    html.Div(children=['Input frame overlap [ms]: ',
+                       dcc.Input(
+                           id='frame-overlap',
+                           value='0',
+                           type='number',
+                           min=0,
+                           style={'width': '50px'}, ),
+                       ]),
+
     html.H3(id='frame-size-out'),
 
     html.H3('Choose frame:'),
@@ -294,6 +303,7 @@ app.layout = html.Div(children=[
 
 sample_rate, samples = None, None
 frame_size_global = 20
+frame_overlap_global = 0
 file_name_global = None
 
 
@@ -310,12 +320,17 @@ file_name_global = None
     State('upload-file', 'last_modified'),
     Input('frame-slider', 'value'),
     Input('frame-size-in', 'value'),
+    Input('frame-overlap', 'value'),
 )
-def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size):
-    global sample_rate, samples, frame_size_global, file_name_global
+def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size, frame_overlap):
+    global sample_rate, samples, frame_size_global, file_name_global, frame_overlap_global
     frame_pos = int(frame_pos)
     frame_size = int(frame_size)
+    frame_overlap = int(frame_overlap)
+    if frame_overlap > frame_size - 1:
+        frame_overlap = frame_size-1
     frame_size_global = frame_size
+    frame_overlap_global = frame_overlap
     time_graph = {}
     n_frames = 0
     table_frame_data = []
@@ -327,18 +342,18 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         file = io.BytesIO(file)
         sample_rate, samples = read_file(file)
 
-        n_frames = math.ceil(len(samples) * 1000 /
-                             sample_rate / int(frame_size))
+        n_frames = math.ceil(
+            (len(samples) * 1000 / sample_rate - frame_overlap) // (frame_size - frame_overlap))
         if frame_pos > n_frames:
             frame_pos = 0
 
         time_graph = draw_audio(samples, sample_rate, list_of_names, [
-            frame_pos*frame_size, (frame_pos+1)*frame_size])
+            frame_pos*(frame_size-frame_overlap), frame_pos*(frame_size-frame_overlap)+frame_size  if frame_pos<n_frames-1 else 1000*len(samples)/sample_rate])
 
-        table_frame_data = [{'Volume': volume(samples, sample_rate, frame_size)[frame_pos],
-                       'STE - Short Time Energy': ste(samples, sample_rate, frame_size)[frame_pos],
-                       'ZCR - Zero Crossing Rate': zcr(samples, sample_rate, frame_size)[frame_pos],
-                       'Silent': sr(samples, sample_rate, frame_size)[frame_pos]}]
+        table_frame_data = [{'Volume': volume(samples, sample_rate, frame_size, frame_overlap)[frame_pos],
+                       'STE - Short Time Energy': ste(samples, sample_rate, frame_size, frame_overlap)[frame_pos],
+                       'ZCR - Zero Crossing Rate': zcr(samples, sample_rate, frame_size, frame_overlap)[frame_pos],
+                       'Silent': sr(samples, sample_rate, frame_size, frame_overlap)[frame_pos]}]
 
         lster_param = lster(samples, sample_rate, frame_size)
 
@@ -346,24 +361,26 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
                        'Mean Volume': mean(samples, sample_rate, frame_size),
                        'VSTD': std(samples, sample_rate, frame_size),
                        'LSTR - Low Short Time Energy Ratio': str(lster_param) + ' >= 0.15 -> speech' if lster_param >= 0.15 else str(lster_param) + ' < 0.15 -> music'}]
-    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1, \
-           table_frame_data, frame_pos, table_gen_data, None
+    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms with overlap: ' + str(frame_overlap) + ' ms.', \
+           n_frames-1, table_frame_data, frame_pos, table_gen_data, None
 
 
 @app.callback(
     Output('param-graph', 'figure'),
     Input('param-dropdown', 'value'),
     Input('frame-size-in', 'value'),
+    Input('frame-overlap', 'value'),
     Input('frame-slider', 'value'),
 )
-def draw_param_graph(value, frame_size, frame_pos):
+def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
     global sample_rate, samples
     graph = {}
     frame_size = int(frame_size)
     frame_pos = int(frame_pos)
+    frame_overlap = int(frame_overlap)
     if sample_rate is not None and samples is not None and value is not None:
         dict = {'Volume': volume, 'ZCR': zcr, 'STE': ste}
-        graph = draw_plot(dict[value](samples, sample_rate, frame_size), value, frame_pos)
+        graph = draw_plot(dict[value](samples, sample_rate, frame_size, frame_overlap), value, frame_pos)
     return graph
 
 @app.callback(
@@ -371,7 +388,7 @@ def draw_param_graph(value, frame_size, frame_pos):
     Input('download-button', 'n_clicks'),
 )
 def button_on_click(n_clicks):
-    global sample_rate, samples, frame_size_global, file_name_global
+    global sample_rate, samples, frame_size_global, file_name_global, frame_overlap_global
     if n_clicks == None:
         button_style = {
             'width': '50%',
@@ -401,7 +418,7 @@ def button_on_click(n_clicks):
             'background-color': 'DeepSkyBlue',
         }
         if samples is not None and sample_rate is not None:
-            saveCSV(samples, sample_rate, frame_size_global, str.replace(file_name_global, '.wav', '.csv'))
+            saveCSV(samples, sample_rate, frame_size_global, str.replace(file_name_global, '.wav', '.csv'), frame_overlap_global)
     return button_style
 
 port = 8050
