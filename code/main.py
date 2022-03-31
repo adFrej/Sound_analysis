@@ -45,9 +45,14 @@ def volume(samples, rate=22000, frame_length=100, no_samples=False):
 
     vol = [0] * n_rfames
 
-    for i in range(n_rfames):
-        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
+    l = len(samples)
+    for i in range(n_rfames-1):
+        scope = samples[i*(l//n_rfames): min((i+1) *
+                                             (l//n_rfames), len(samples))]
         vol[i] = np.sqrt(np.sum(np.square(scope))/len(scope))
+
+    scope = samples[n_rfames*(l//n_rfames):]
+    vol[-1] = np.sqrt(np.sum(np.square(scope))/len(scope))
 
     return vol
 
@@ -58,29 +63,31 @@ def ste(samples, rate=22000, frame_length=100, no_samples=False):
         return np.sum(samples*samples)/len(samples)
 
     n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
-
     ste = [0] * n_rfames
 
-    for i in range(n_rfames):
-        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
-        ste[i] = np.sum(scope*scope)/len(scope)
+    l = len(samples)
+    for i in range(n_rfames-1):
+
+        scope = samples[i*(l//n_rfames): min((i+1) *
+                                             (l//n_rfames), len(samples))]
+        ste[i] = np.sum(np.square(scope))/len(scope)
+    scope = samples[n_rfames*(l//n_rfames):]
+    ste[-1] = np.sum(scope*scope)/len(scope)
 
     return ste
-
-# do sprawdzenia V
 
 
 def zcr(samples, rate, frame_length=100, no_samples=False):
 
     if no_samples:
-        return np.sum(np.sign(samples[1:]) - np.sign(samples[:-1])) * rate / len(samples) / 2
+        return np.sum(np.sign(np.subtract(samples[1:]), np.sign(samples[:-1]))) * rate / len(samples) / 4
 
     n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
 
     zcr = [0] * n_rfames
-    l = len(samples)
 
-    for i in range(n_rfames):
+    l = len(samples)
+    for i in range(n_rfames-1):
 
         scope = samples[i*(l//n_rfames): min((i+1) *
                                              (l//n_rfames), len(samples))]
