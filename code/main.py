@@ -29,10 +29,13 @@ def draw_audio(samples, name, markers=None):
     return fig
 
 
-def draw_plot(values, name):
+def draw_plot(values, name, marker=None):
     fig = px.line(values)
+    if marker is not None:
+        fig.add_vline(x=marker)
     fig.update_layout(title=name, yaxis_title="Value",
                       xaxis_title="Time", showlegend=False, margin=dict(t=40))
+    fig.update_xaxes(dtick=1)
     return fig
 
 
@@ -222,6 +225,8 @@ app.layout = html.Div(children=[
                        dcc.Input(
                            id='frame-size-in',
                            value='20',
+                           type='number',
+                           min=1,
                            style={'width': '50px'},),
                        ]),
 
@@ -238,6 +243,12 @@ app.layout = html.Div(children=[
         id='frame-slider'
     ),
 
+    dash.dash_table.DataTable(
+        id='table',
+        data=[],
+        style_cell={'textAlign': 'center', 'width': '25%'},
+    ),
+
     dcc.Dropdown(['Volume', 'ZCR', 'STE'], id='param-dropdown'),
 
     dcc.Graph(
@@ -252,11 +263,14 @@ sample_rate, samples = None, None
     Output('time-graph', 'figure'),
     Output('frame-size-out', 'children'),
     Output('frame-slider', 'max'),
+    Output('table', 'data'),
+    Output('frame-slider', 'value'),
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
     Input('frame-slider', 'value'),
     Input('frame-size-in', 'value'),
+
 )
 def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size):
     global sample_rate, samples
@@ -264,6 +278,7 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     frame_size = int(frame_size)
     time_graph = {}
     n_frames = 0
+    table_data = []
     if list_of_contents is not None:
         content_type, content_string = list_of_contents.split(',')
         file = base64.b64decode(content_string)
@@ -273,24 +288,33 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         n_frames = math.ceil(len(samples) * 1000 /
                              sample_rate / int(frame_size))
         frame_size_samp = len(samples) / n_frames
+        if frame_pos > n_frames:
+            frame_pos = 0
 
         time_graph = draw_audio(samples, list_of_names, [
             frame_pos*frame_size_samp, (frame_pos+1)*frame_size_samp])
-    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1
+
+        table_data = [{'Volume': volume(samples, sample_rate, frame_size)[frame_pos],
+                       'STE': ste(samples, sample_rate, frame_size)[frame_pos],
+                       'ZCR': zcr(samples, sample_rate, frame_size)[frame_pos],
+                       'Silent': sr(samples, sample_rate, frame_size)[frame_pos]}]
+    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1, table_data, frame_pos
 
 
 @ app.callback(
     Output('param-graph', 'figure'),
     Input('param-dropdown', 'value'),
     Input('frame-size-in', 'value'),
+    Input('frame-slider', 'value'),
 )
-def draw_param_graph(value, frame_size):
+def draw_param_graph(value, frame_size, frame_pos):
     global sample_rate, samples
     graph = {}
     frame_size = int(frame_size)
+    frame_pos = int(frame_pos)
     if sample_rate is not None and samples is not None and value is not None:
         dict = {'Volume': volume, 'ZCR': zcr, 'STE': ste}
-        graph = draw_plot(dict[value](samples, sample_rate, frame_size), value)
+        graph = draw_plot(dict[value](samples, sample_rate, frame_size), value, frame_pos)
     return graph
 
 
