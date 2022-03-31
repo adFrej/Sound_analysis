@@ -164,11 +164,12 @@ def lster(samples, rate, frame_length):
 
 def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
     header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'isSilent']
-    start = np.arange(0, len(samples)/rate*1000 -
-                      frame_length, frame_length-frame_overlap)
-    end = np.append(np.arange(frame_length, len(samples)/rate*1000 -
-                              frame_length,
-                    frame_length-frame_overlap), len(samples)/rate*1000)
+
+    start = np.arange(0,  len(samples)/rate*1000 -
+                      frame_length+1, frame_length-frame_overlap)
+    end = np.append(np.arange(frame_length, len(samples)/rate*1000 - frame_length +
+                    frame_overlap,  frame_length-frame_overlap), len(samples)/rate*1000)
+
     vol = volume(samples, rate, frame_length, frame_overlap)
     ste_ = ste(samples, rate, frame_length, frame_overlap)
     zcr = volume(samples, rate, frame_length, frame_overlap)
