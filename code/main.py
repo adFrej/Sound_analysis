@@ -15,6 +15,7 @@ import csv
 
 def read_file(file_path):
     sampling_rate, samples = wavfile.read(file_path)
+    samples = samples.astype('int64')
     return sampling_rate, samples
 
 
@@ -26,7 +27,6 @@ def draw_audio(samples, name, markers=None):
     fig.update_layout(title=name, yaxis_title="Amplitude",
                       xaxis_title="Time", showlegend=False, margin=dict(t=40))
     return fig
-
 
 def draw_plot(values, name):
     fig = px.line(values)
@@ -210,16 +210,20 @@ app.layout = html.Div(children=[
                            style={'width': '50px'},),
                        ]),
 
-    dcc.Input(
-        id='frame-pos',
-        value='0',
-        style={'width': '50px'},
-    ),
-
     html.H3(id='frame-size-out'),
 
     dcc.Graph(
         id='time-graph',),
+
+    dcc.Slider(
+        min=0,
+        max=0,
+        step=1,
+        value=0,
+        id='frame-slider'
+    ),
+
+    dcc.Dropdown(['Volume', 'ZCR', 'STE'], id='param-dropdown'),
 
     dcc.Graph(
         id='param-graph',
@@ -234,35 +238,52 @@ sample_rate, samples = None, None
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
-    Input('frame-pos', 'value')
+    Input('frame-slider', 'value'),
+    Input('frame-size-in', 'value'),
 )
-def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos):
+def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size):
     global sample_rate, samples
+    frame_pos = int(frame_pos)
+    frame_size = int(frame_size)
     time_graph = {}
     if list_of_contents is not None:
         content_type, content_string = list_of_contents.split(',')
         file = base64.b64decode(content_string)
         file = io.BytesIO(file)
         sample_rate, samples = read_file(file)
-        time_graph = draw_audio(samples, list_of_names, [frame_pos])
-    return time_graph
 
+        n_frames = math.ceil(len(samples) * 1000 / sample_rate / int(frame_size))
+        frame_size_samp = len(samples) / n_frames
+
+        time_graph = draw_audio(samples, list_of_names, [frame_pos*frame_size_samp, (frame_pos+1)*frame_size_samp])
+    return time_graph
 
 @app.callback(
     Output('param-graph', 'figure'),
-    Input('button', 'n_clicks'),
+    Input('param-dropdown', 'value'),
+    Input('frame-size-in', 'value'),
 )
-def draw_param_graph(value):
-    return {}
-
+def draw_param_graph(value, frame_size):
+    global sample_rate, samples
+    graph = {}
+    frame_size = int(frame_size)
+    if sample_rate is not None and samples is not None and value is not None:
+        dict = {'Volume': volume, 'ZCR': zcr, 'STE': ste}
+        graph = draw_plot(dict[value](samples, sample_rate, frame_size), value)
+    return graph
 
 @app.callback(
     Output('frame-size-out', 'children'),
+    Output('frame-slider', 'max'),
     Input('frame-size-in', 'value'),
 )
-def get_frame(value):
-    return 'Selected frame length: ' + value + ' ms.'
-
+def get_frame(frame_size):
+    global sample_rate, samples
+    if sample_rate is not None and samples is not None:
+        n_frames = math.ceil(len(samples) * 1000 / sample_rate / int(frame_size))
+    else:
+        n_frames = 0
+    return 'Selected frame length: ' + frame_size + ' ms.', n_frames
 
 port = 8050
 
@@ -281,5 +302,5 @@ if __name__ == '__main__':
     # draw_audio(samples).show()
     # debug()
 
-    open_browser()
+    # open_browser()
     app.run_server(debug=True)
