@@ -39,81 +39,90 @@ def draw_plot(values, name, marker=None):
     return fig
 
 
-def volume(samples, rate=22000, frame_length=100, no_samples=False):
+def volume(samples, rate=22000, frame_length=100, frame_overlap=0, no_samples=False):
 
     if no_samples:
         return np.sqrt(np.sum(samples*samples)/len(samples))
 
-    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+    n_rfames = math.ceil(
+        (len(samples)*1000/rate - frame_overlap) // (frame_length-frame_overlap))
 
     vol = [0] * n_rfames
 
-    l = len(samples)
     for i in range(n_rfames-1):
-        scope = samples[i*(l//n_rfames): min((i+1) *
-                                             (l//n_rfames), len(samples))]
+        scope = samples[i*(frame_length-frame_overlap)*rate //
+                        1000: ((i+1)*frame_length-i*frame_overlap)*rate//1000]
         vol[i] = np.sqrt(np.sum(np.square(scope))/len(scope))
 
-    scope = samples[n_rfames*(l//n_rfames):]
+    scope = samples[n_rfames*(frame_length-frame_overlap)*rate //
+                    1000:]
     vol[-1] = np.sqrt(np.sum(np.square(scope))/len(scope))
-
     return vol
 
 
-def ste(samples, rate=22000, frame_length=100, no_samples=False):
+def ste(samples, rate=22000, frame_length=100, frame_overlap=0, no_samples=False):
 
     if no_samples:
         return np.sum(samples*samples)/len(samples)
 
-    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+    n_rfames = math.ceil(
+        (len(samples)*1000/rate - frame_overlap) // (frame_length-frame_overlap))
     ste = [0] * n_rfames
 
-    l = len(samples)
     for i in range(n_rfames-1):
 
-        scope = samples[i*(l//n_rfames): min((i+1) *
-                                             (l//n_rfames), len(samples))]
+        scope = samples[i*(frame_length-frame_overlap)*rate //
+                        1000: ((i+1)*frame_length-i*frame_overlap)*rate//1000]
         ste[i] = np.sum(np.square(scope))/len(scope)
-    scope = samples[n_rfames*(l//n_rfames):]
+    scope = samples[n_rfames*(frame_length-frame_overlap)*rate //
+                    1000:]
     ste[-1] = np.sum(scope*scope)/len(scope)
 
     return ste
 
 
-def zcr(samples, rate, frame_length=100, no_samples=False):
+def zcr(samples, rate, frame_length=100, frame_overlap=0, no_samples=False):
 
     if no_samples:
         return np.sum(np.sign(np.subtract(samples[1:]), np.sign(samples[:-1]))) * rate / len(samples) / 4
 
-    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+    n_rfames = math.ceil(
+        (len(samples)*1000/rate - frame_overlap) // (frame_length-frame_overlap))
 
     zcr = [0] * n_rfames
 
-    l = len(samples)
     for i in range(n_rfames-1):
 
-        scope = samples[i*(l//n_rfames): min((i+1) *
-                                             (l//n_rfames), len(samples))]
+        scope = samples[i*(frame_length-frame_overlap)*rate //
+                        1000: ((i+1)*frame_length-i*frame_overlap)*rate//1000]
         zcr[i] = np.sum(np.abs(np.subtract(np.sign(scope[1:]), np.sign(scope[:-1]))
                                )) * rate / len(scope) / 4
 
-    scope = samples[n_rfames*(l//n_rfames):]
+    scope = samples[n_rfames*(frame_length-frame_overlap)*rate //
+                    1000:]
     zcr[-1] = np.sum(np.abs(np.subtract(np.sign(scope[1:]), np.sign(scope[:-1]))
                             )) * rate / len(scope) / 4
 
     return zcr
 
 
-def sr(samples, rate, frame_length):
+def sr(samples, rate, frame_length, frame_overlap=0):
 
-    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+    n_rfames = math.ceil(
+        (len(samples)*1000/rate - frame_overlap) // (frame_length-frame_overlap))
 
     sr = [0] * n_rfames
 
-    for i in range(n_rfames):
-        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
+    for i in range(n_rfames-1):
+        scope = samples[i*(frame_length-frame_overlap)*rate //
+                        1000: ((i+1)*frame_length-i*frame_overlap)*rate//1000]
         sr[i] = volume(scope, rate, frame_length, no_samples=True) < 0.02 and zcr(
             scope, rate, frame_length, no_samples=True) < 50
+
+    scope = samples[n_rfames*(frame_length-frame_overlap)*rate //
+                    1000:]
+    sr[-1] = volume(scope, rate, frame_length, no_samples=True) < 0.02 and zcr(
+        scope, rate, frame_length, no_samples=True) < 50
 
     return sr
 
@@ -152,15 +161,22 @@ def lster(samples, rate, frame_length):
     return sum/(2*i)
 
 
-def saveCSV(samples, rate, frame_length, path):
-    header = ['frame_start', 'volume', 'ste', 'zcr', 'isSilent']
-    start = np.arange(0, len(samples)/rate*1000, frame_length)
-    vol = volume(samples, rate, frame_length)
-    ste_ = ste(samples, rate, frame_length)
-    zcr = volume(samples, rate, frame_length)
-    silent = sr(samples, rate, frame_length)
+def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
+    header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'isSilent']
+    start = np.arange(0, len(samples)/rate*1000 -
+                      frame_length, frame_length-frame_overlap)
+    end = np.append(np.arange(frame_length, len(samples)/rate*1000 -
+                              frame_length,
+                    frame_length-frame_overlap), len(samples)/rate*1000)
+    vol = volume(samples, rate, frame_length, frame_overlap)
+    ste_ = ste(samples, rate, frame_length, frame_overlap)
+    zcr = volume(samples, rate, frame_length, frame_overlap)
+    silent = sr(samples, rate, frame_length, frame_overlap)
 
-    data = np.array([start, vol, ste_, zcr, silent]).T
+    print(len(start), " ", len(end), " ", len(vol), " ",
+          len(ste_), " ", len(zcr), " ", len(silent))
+
+    data = np.array([start, end, vol, ste_, zcr, silent]).T
 
     with open(path, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
@@ -174,22 +190,22 @@ def saveCSV(samples, rate, frame_length, path):
 
 
 def debug():
-    rate, samples = read_file('./america.wav')
-    samples = samples.astype('int64')
+    rate, samples = read_file('./chrzaszcz.wav')
 
     print('dlugosc: ', len(samples)/rate, ' s')
-    print('volume: ', volume(samples, rate, 100))
-    print('zcr: ', zcr(samples, rate, 100))
-    print('sr: ', sr(samples, rate, 100))
-    print('ste: ', ste(samples, rate, 100))
+    # print('volume: ', volume(samples, rate, 100))
+    # print('zcr: ', zcr(samples, rate, 100))
+    # print('sr: ', sr(samples, rate, 100))
+    # print('ste: ', ste(samples, rate, 100))
 
-    print('vdr: ', vdr(samples, rate, 100))
-    print('mean: ', mean(samples, rate, 100))
-    print('std: ', std(samples, rate, 100))
-    print('lster: ', lster(samples, rate, 100))
-    print('speach?: ', lster(samples, rate, 100) > 0.15)
-
-    saveCSV(samples, rate, 100, './test.csv')
+    # print('vdr: ', vdr(samples, rate, 100))
+    # print('mean: ', mean(samples, rate, 100))
+    # print('std: ', std(samples, rate, 100))
+    # print('lster: ', lster(samples, rate, 100))
+    # print('speach?: ', lster(samples, rate, 100) > 0.15)
+    print('VOLUME: ', volume(samples, rate, 100, 30))
+    print('volume: ', volume(samples, rate, 100, 0))
+    saveCSV(samples, rate, 100, './test.csv', 10)
     # draw_audio(samples)
 
 
@@ -313,7 +329,8 @@ def draw_param_graph(value, frame_size, frame_pos):
     frame_pos = int(frame_pos)
     if sample_rate is not None and samples is not None and value is not None:
         dict = {'Volume': volume, 'ZCR': zcr, 'STE': ste}
-        graph = draw_plot(dict[value](samples, sample_rate, frame_size), value, frame_pos)
+        graph = draw_plot(dict[value](
+            samples, sample_rate, frame_size), value, frame_pos)
     return graph
 
 
@@ -332,7 +349,7 @@ if __name__ == '__main__':
     # print(zcr(rate, samples))
     # print(sr(rate, samples))
     # draw_audio(samples).show()
-    # debug()
+    debug()
 
     # open_browser()
-    app.run_server(debug=True)
+    # app.run_server(debug=True)
