@@ -18,6 +18,7 @@ def read_file(file_path):
     samples = samples.astype('int64')
     return sampling_rate, samples
 
+
 def draw_audio(samples, name, markers=None):
     fig = px.line(samples)
     if markers is not None:
@@ -26,6 +27,7 @@ def draw_audio(samples, name, markers=None):
     fig.update_layout(title=name, yaxis_title="Amplitude",
                       xaxis_title="Time", showlegend=False, margin=dict(t=40))
     return fig
+
 
 def draw_plot(values, name):
     fig = px.line(values)
@@ -76,11 +78,18 @@ def zcr(samples, rate, frame_length=100, no_samples=False):
     n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
 
     zcr = [0] * n_rfames
+    l = len(samples)
 
     for i in range(n_rfames):
-        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
-        zcr[i] = np.sum(np.sign(scope[1:]) - np.sign(scope[:-1])
-                        ) * rate / len(scope) / 2
+
+        scope = samples[i*(l//n_rfames): min((i+1) *
+                                             (l//n_rfames), len(samples))]
+        zcr[i] = np.sum(np.abs(np.subtract(np.sign(scope[1:]), np.sign(scope[:-1]))
+                               )) * rate / len(scope) / 4
+
+    scope = samples[n_rfames*(l//n_rfames):]
+    zcr[-1] = np.sum(np.abs(np.subtract(np.sign(scope[1:]), np.sign(scope[:-1]))
+                            )) * rate / len(scope) / 4
 
     return zcr
 
@@ -128,7 +137,7 @@ def lster(samples, rate, frame_length):
         av_index = math.floor(i*frame_length / 1000)
 
         sum = sum + (0.5*avSTE[av_index] - ste(samples[i *
-                     frame_length: min((i+1)*frame_length, len(samples))], no_samples=True) > 0)
+                                                       frame_length: min((i+1)*frame_length, len(samples))], no_samples=True) > 0)
 
     return sum/(2*i)
 
@@ -232,7 +241,7 @@ app.layout = html.Div(children=[
 sample_rate, samples = None, None
 
 
-@app.callback(
+@ app.callback(
     Output('time-graph', 'figure'),
     Output('frame-size-out', 'children'),
     Output('frame-slider', 'max'),
@@ -254,13 +263,16 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         file = io.BytesIO(file)
         sample_rate, samples = read_file(file)
 
-        n_frames = math.ceil(len(samples) * 1000 / sample_rate / int(frame_size))
+        n_frames = math.ceil(len(samples) * 1000 /
+                             sample_rate / int(frame_size))
         frame_size_samp = len(samples) / n_frames
 
-        time_graph = draw_audio(samples, list_of_names, [frame_pos*frame_size_samp, (frame_pos+1)*frame_size_samp])
+        time_graph = draw_audio(samples, list_of_names, [
+            frame_pos*frame_size_samp, (frame_pos+1)*frame_size_samp])
     return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1
 
-@app.callback(
+
+@ app.callback(
     Output('param-graph', 'figure'),
     Input('param-dropdown', 'value'),
     Input('frame-size-in', 'value'),
@@ -274,7 +286,9 @@ def draw_param_graph(value, frame_size):
         graph = draw_plot(dict[value](samples, sample_rate, frame_size), value)
     return graph
 
+
 port = 8050
+
 
 def open_browser():
     webbrowser.open_new("http://localhost:{}".format(port))
