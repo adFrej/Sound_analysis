@@ -124,11 +124,12 @@ def lster(samples, rate, frame_length):
 def debug():
     rate, samples = read_file('./chrzaszcz.wav')
     samples = samples.astype('int64')
-    print("nans: ", np.isnan(samples).any())
+
     print('dlugosc: ', len(samples)/rate, ' s')
     print('volume: ', volume(samples, rate, 100))
     print('zcr: ', zcr(samples, rate, 100))
     print('sr: ', sr(samples, rate, 100))
+    print('ste: ', ste(samples, rate, 100))
 
     print('vdr: ', vdr(samples, rate, 100))
     print('mean: ', mean(samples, rate, 100))
