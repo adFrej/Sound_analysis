@@ -17,8 +17,17 @@ def read_file(file_path):
     return sampling_rate, samples
 
 
-def draw_audio(samples):
+def draw_audio(samples, name, markers = None):
     fig = px.line(samples)
+    if markers is not None:
+        for m in markers:
+            fig.add_vline(x=m)
+    fig.update_layout(title=name, yaxis_title="Amplitude", xaxis_title="Time", showlegend=False, margin=dict(t=40))
+    return fig
+
+def draw_plot(values, name):
+    fig = px.line(values)
+    fig.update_layout(title=name, yaxis_title="Value", xaxis_title="Time", showlegend=False, margin=dict(t=40))
     return fig
 
 
@@ -141,8 +150,7 @@ def debug():
 app = dash.Dash(__name__)
 
 app.layout = html.Div(children=[
-    html.H1(children='Dźwięk - projekt 1',
-            style={'color': 'blue'}),
+    html.H1(children='Dźwięk - projekt 1'),
 
     dcc.Upload(
         id='upload-file',
@@ -167,11 +175,30 @@ app.layout = html.Div(children=[
         multiple=False
     ),
 
+    html.Div(children=['Input frame length [ms]: ',
+                       dcc.Input(
+                           id='frame-size-in',
+                           value='20',
+                           style={'width': '50px'},),
+                       ]),
+
+    dcc.Input(
+        id='frame-pos',
+        value='0',
+        style={'width': '50px'},
+    ),
+
+    html.H3(id='frame-size-out'),
+
     dcc.Graph(
         id='time-graph',),
+
+    dcc.Graph(
+        id='param-graph',
+    ),
 ])
 
-time_graph = {}
+sample_rate, samples = None, None
 
 
 @app.callback(
@@ -179,17 +206,33 @@ time_graph = {}
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
+    Input('frame-pos', 'value')
 )
-def update_output(list_of_contents, list_of_names, list_of_dates):
-    global time_graph
+def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos):
+    global sample_rate, samples
+    time_graph = {}
     if list_of_contents is not None:
         content_type, content_string = list_of_contents.split(',')
         file = base64.b64decode(content_string)
         file = io.BytesIO(file)
-        rate, samples = read_file(file)
-        time_graph = draw_audio(samples)
+        sample_rate, samples = read_file(file)
+        time_graph = draw_audio(samples, list_of_names, [frame_pos])
     return time_graph
 
+
+@app.callback(
+    Output('param-graph', 'figure'),
+    Input('button', 'n_clicks'),
+)
+def draw_param_graph(value):
+    return {}
+
+@app.callback(
+    Output('frame-size-out', 'children'),
+    Input('frame-size-in', 'value'),
+)
+def get_frame(value):
+    return 'Selected frame length: ' + value + ' ms.'
 
 port = 8050
 
@@ -205,7 +248,7 @@ if __name__ == '__main__':
     # print(volume(samples))
     # print(zcr(rate, samples))
     # print(sr(rate, samples))
-    # draw_audio(samples)
+    # draw_audio(samples).show()
     debug()
 
     # open_browser()
