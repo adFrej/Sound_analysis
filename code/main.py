@@ -84,7 +84,8 @@ def ste(samples, rate=22000, frame_length=100, frame_overlap=0, no_samples=False
 def zcr(samples, rate, frame_length=100, frame_overlap=0, no_samples=False):
 
     if no_samples:
-        return np.sum(np.sign(np.subtract(samples[1:]), np.sign(samples[:-1]))) * rate / len(samples) / 4
+        return np.sum(np.abs(np.subtract(np.sign(samples[1:]), np.sign(samples[:-1]))
+                             )) * rate / len(samples) / 4
 
     n_rfames = math.ceil(
         (len(samples)*1000/rate - frame_overlap) // (frame_length-frame_overlap))
@@ -116,13 +117,13 @@ def sr(samples, rate, frame_length, frame_overlap=0):
     for i in range(n_rfames-1):
         scope = samples[i*(frame_length-frame_overlap)*rate //
                         1000: ((i+1)*frame_length-i*frame_overlap)*rate//1000]
-        sr[i] = volume(scope, rate, frame_length, no_samples=True) < 0.02 and zcr(
-            scope, rate, frame_length, no_samples=True) < 50
+        sr[i] = volume(scope, rate, frame_length, no_samples=True) < 100 and zcr(
+            scope, rate, frame_length, no_samples=True) > 300
 
     scope = samples[n_rfames*(frame_length-frame_overlap)*rate //
                     1000:]
-    sr[-1] = volume(scope, rate, frame_length, no_samples=True) < 0.02 and zcr(
-        scope, rate, frame_length, no_samples=True) < 50
+    sr[-1] = volume(scope, rate, frame_length, no_samples=True) < 100 and zcr(
+        scope, rate, frame_length, no_samples=True) > 300
 
     return sr
 
@@ -383,6 +384,7 @@ def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
         graph = draw_plot(dict[value](samples, sample_rate, frame_size, frame_overlap), value, frame_pos)
     return graph
 
+
 @app.callback(
     Output('download-button', 'style'),
     Input('download-button', 'n_clicks'),
@@ -420,6 +422,7 @@ def button_on_click(n_clicks):
         if samples is not None and sample_rate is not None:
             saveCSV(samples, sample_rate, frame_size_global, str.replace(file_name_global, '.wav', '.csv'), frame_overlap_global)
     return button_style
+
 
 port = 8050
 
