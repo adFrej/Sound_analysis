@@ -214,7 +214,8 @@ def debug():
 app = dash.Dash(__name__)
 
 app.layout = html.Div(children=[
-    html.H1(children='Dźwięk - projekt 1'),
+    html.H1(children='Wav files analysis',
+            style={'text-align': 'center'}),
 
     dcc.Upload(
         id='upload-file',
@@ -255,6 +256,8 @@ app.layout = html.Div(children=[
         style_cell={'textAlign': 'center', 'width': '25%'},
     ),
 
+    html.H2('Properties:'),
+
     html.Div(children=['Input frame length [ms]: ',
                        dcc.Input(
                            id='frame-size-in',
@@ -282,8 +285,11 @@ app.layout = html.Div(children=[
         max=0,
         step=1,
         value=0,
-        id='frame-slider'
+        id='frame-slider',
+        included=False,
     ),
+
+    html.H2('Signal over time:'),
 
     dcc.Graph(
         id='time-graph',),
@@ -329,10 +335,6 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     frame_pos = int(frame_pos)
     frame_size = int(frame_size)
     frame_overlap = int(frame_overlap)
-    if frame_overlap > frame_size - 1:
-        frame_overlap = frame_size-1
-    frame_size_global = frame_size
-    frame_overlap_global = frame_overlap
     time_graph = {}
     n_frames = 0
     table_frame_data = []
@@ -343,6 +345,13 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         file = base64.b64decode(content_string)
         file = io.BytesIO(file)
         sample_rate, samples = read_file(file)
+
+        if frame_size > 1000 * len(samples) // sample_rate // 2:
+            frame_size = 1000 * len(samples) // sample_rate // 2
+        if frame_overlap > frame_size - 1:
+            frame_overlap = frame_size - 1
+        frame_size_global = frame_size
+        frame_overlap_global = frame_overlap
 
         n_frames = math.ceil(
             (len(samples) * 1000 / sample_rate - frame_overlap) // (frame_size - frame_overlap))
@@ -375,12 +384,18 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     Input('frame-slider', 'value'),
 )
 def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
-    global sample_rate, samples
+    global sample_rate, samples, frame_size_global, frame_overlap_global
     graph = {}
     frame_size = int(frame_size)
     frame_pos = int(frame_pos)
     frame_overlap = int(frame_overlap)
     if sample_rate is not None and samples is not None and value is not None:
+        if frame_size > 1000 * len(samples) // sample_rate // 2:
+            frame_size = 1000 * len(samples) // sample_rate // 2
+        if frame_overlap > frame_size - 1:
+            frame_overlap = frame_size - 1
+        frame_size_global = frame_size
+        frame_overlap_global = frame_overlap
         dict = {'Volume': volume, 'ZCR': zcr, 'STE': ste}
         graph = draw_plot(dict[value](samples, sample_rate, frame_size, frame_overlap), value, frame_pos)
     return graph
@@ -432,7 +447,7 @@ def open_browser():
     webbrowser.open_new("http://localhost:{}".format(port))
 
 
-app.title = 'dzwiek'
+app.title = 'Sound analysis'
 
 if __name__ == '__main__':
     # rate, samples = read_file('../wyewoluowac.wav')
