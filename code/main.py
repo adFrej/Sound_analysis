@@ -9,6 +9,7 @@ from dash import html
 from dash.dependencies import Input, Output, State
 import webbrowser
 import math
+import statistics
 
 
 def read_file(file_path):
@@ -21,35 +22,85 @@ def draw_audio(samples):
     return fig
 
 
-def volume(samples):
-    return np.sqrt(np.sum(samples*samples)/len(samples))
+def volume(samples, rate=22000, frame_length=100, no_samples=False):
+
+    if no_samples:
+        return np.sqrt(np.sum(samples*samples)/len(samples))
+
+    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+
+    vol = [0] * n_rfames
+
+    for i in range(n_rfames):
+        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
+        vol[i] = np.sqrt(np.sum(np.square(scope))/len(scope))
+
+    return vol
 
 
-def ste(samples):
-    return np.sum(samples*samples)/len(samples)
+def ste(samples, rate=22000, frame_length=100, no_samples=False):
+
+    if no_samples:
+        return np.sum(samples*samples)/len(samples)
+
+    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+
+    ste = [0] * n_rfames
+
+    for i in range(n_rfames):
+        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
+        ste[i] = np.sum(scope*scope)/len(scope)
+
+    return ste
+
+# do sprawdzenia V
 
 
-def zcr(sampling_rate, samples):
-    return np.sum(np.sign(samples[1:]) - np.sign(samples[:-1])) * sampling_rate / len(samples) / 2
+def zcr(samples, rate, frame_length=100, no_samples=False):
+
+    if no_samples:
+        return np.sum(np.sign(samples[1:]) - np.sign(samples[:-1])) * rate / len(samples) / 2
+
+    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+
+    zcr = [0] * n_rfames
+
+    for i in range(n_rfames):
+        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
+        zcr[i] = np.sum(np.sign(scope[1:]) - np.sign(scope[:-1])
+                        ) * rate / len(scope) / 2
+
+    return zcr
 
 
-def sr(sampling_rate, samples):
-    return volume(samples) < 0.02 and zcr(sampling_rate, samples) < 50
+def sr(samples, rate, frame_length):
+
+    n_rfames = math.ceil(len(samples)*1000/rate / frame_length)
+
+    sr = [0] * n_rfames
+
+    for i in range(n_rfames):
+        scope = samples[i*frame_length: min((i+1)*frame_length, len(samples))]
+        sr[i] = volume(scope, rate, frame_length, no_samples=True) < 0.02 and zcr(
+            scope, rate, frame_length, no_samples=True) < 50
+
+    return sr
+
+#      VVVV Klip scope VVVV
 
 
-def vdr(samples):
-    v = volume(samples)
-    return (np.max(v) - np.min(v)) / np.max(v)
+def vdr(samples, rate, frame_length):
+    v = volume(samples, rate, frame_length)
+    return (max(v) - min(v)) / max(v)
 
 
-def mean(samples):
-    return np.mean(volume(samples))
+def mean(samples, rate, frame_length):
+    vol = volume(samples, rate, frame_length)
+    return sum(vol)/len(vol)
 
 
-def std(samples):
-    return np.std(volume(samples))
-
-# frame_length w ms
+def std(samples, rate, frame_length):
+    return statistics.stdev(volume(samples, rate, frame_length))
 
 
 def lster(samples, rate, frame_length):
@@ -58,30 +109,30 @@ def lster(samples, rate, frame_length):
     avSTE = []
 
     for i in range(math.ceil(len(samples)/rate)):
-        avSTE.append(ste(samples[i*rate: min((i+1)*rate, len(samples))]))
+        avSTE.append(
+            ste(samples[i*rate: min((i+1)*rate, len(samples))], no_samples=True))
 
-    print(avSTE)
     for i in range(math.ceil(len(samples)*1000/(frame_length*rate))):
         av_index = math.floor(i*frame_length / 1000)
-        0.5*avSTE[av_index]
 
-        sample[i * frame_length: min((i+1)*frame_length, len(samples))]
-        sum = sum + (0.5*avSTE[av_index] - sample[i *
-                     frame_length: min((i+1)*frame_length, len(samples))]) > 0
+        sum = sum + (0.5*avSTE[av_index] - ste(samples[i *
+                     frame_length: min((i+1)*frame_length, len(samples))], no_samples=True) > 0)
 
     return sum/(2*i)
 
 
-def debug:
+def debug():
     rate, samples = read_file('./chrzaszcz.wav')
+    samples = samples.astype('int64')
+    print("nans: ", np.isnan(samples).any())
     print('dlugosc: ', len(samples)/rate, ' s')
-    print('volume: ', volume(samples))
-    print('zcr: ', zcr(rate, samples))
-    print('sr: ', sr(rate, samples))
+    print('volume: ', volume(samples, rate, 100))
+    print('zcr: ', zcr(samples, rate, 100))
+    print('sr: ', sr(samples, rate, 100))
 
-    print('vdr: ', vdr(samples))
-    print('mean: ', mean(samples))
-    print('std: ', std(samples))
+    print('vdr: ', vdr(samples, rate, 100))
+    print('mean: ', mean(samples, rate, 100))
+    print('std: ', std(samples, rate, 100))
     print('lster: ', lster(samples, rate, 100))
     # draw_audio(samples)
 
@@ -154,6 +205,7 @@ if __name__ == '__main__':
     # print(zcr(rate, samples))
     # print(sr(rate, samples))
     # draw_audio(samples)
+    debug()
 
-    open_browser()
-    app.run_server(debug=True)
+    # open_browser()
+   # app.run_server(debug=True)
