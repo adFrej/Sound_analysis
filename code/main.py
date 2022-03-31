@@ -10,6 +10,7 @@ from dash.dependencies import Input, Output, State
 import webbrowser
 import math
 import statistics
+import csv
 
 
 def read_file(file_path):
@@ -17,17 +18,20 @@ def read_file(file_path):
     return sampling_rate, samples
 
 
-def draw_audio(samples, name, markers = None):
+def draw_audio(samples, name, markers=None):
     fig = px.line(samples)
     if markers is not None:
         for m in markers:
             fig.add_vline(x=m)
-    fig.update_layout(title=name, yaxis_title="Amplitude", xaxis_title="Time", showlegend=False, margin=dict(t=40))
+    fig.update_layout(title=name, yaxis_title="Amplitude",
+                      xaxis_title="Time", showlegend=False, margin=dict(t=40))
     return fig
+
 
 def draw_plot(values, name):
     fig = px.line(values)
-    fig.update_layout(title=name, yaxis_title="Value", xaxis_title="Time", showlegend=False, margin=dict(t=40))
+    fig.update_layout(title=name, yaxis_title="Value",
+                      xaxis_title="Time", showlegend=False, margin=dict(t=40))
     return fig
 
 
@@ -130,6 +134,27 @@ def lster(samples, rate, frame_length):
     return sum/(2*i)
 
 
+def saveCSV(samples, rate, frame_length, path):
+    header = ['frame_start', 'volume', 'ste', 'zcr', 'type']
+    start = np.arange(0, len(samples)/rate*1000, frame_length)
+    vol = volume(samples, rate, frame_length)
+    ste_ = ste(samples, rate, frame_length)
+    zcr = volume(samples, rate, frame_length)
+    type = vol
+
+    data = np.array([start, vol, ste_, zcr, type]).T
+
+    with open(path, 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+
+        # write the header
+        writer.writerow(header)
+
+        # write multiple rows
+        writer.writerows(data)
+    return 0
+
+
 def debug():
     rate, samples = read_file('./chrzaszcz.wav')
     samples = samples.astype('int64')
@@ -144,6 +169,8 @@ def debug():
     print('mean: ', mean(samples, rate, 100))
     print('std: ', std(samples, rate, 100))
     print('lster: ', lster(samples, rate, 100))
+
+    saveCSV(samples, rate, 100, './test.csv')
     # draw_audio(samples)
 
 
@@ -227,12 +254,14 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
 def draw_param_graph(value):
     return {}
 
+
 @app.callback(
     Output('frame-size-out', 'children'),
     Input('frame-size-in', 'value'),
 )
 def get_frame(value):
     return 'Selected frame length: ' + value + ' ms.'
+
 
 port = 8050
 
@@ -252,4 +281,4 @@ if __name__ == '__main__':
     debug()
 
     # open_browser()
-   # app.run_server(debug=True)
+    # app.run_server(debug=True)
