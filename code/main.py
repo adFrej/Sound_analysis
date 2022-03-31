@@ -18,7 +18,6 @@ def read_file(file_path):
     samples = samples.astype('int64')
     return sampling_rate, samples
 
-
 def draw_audio(samples, name, markers=None):
     fig = px.line(samples)
     if markers is not None:
@@ -235,6 +234,8 @@ sample_rate, samples = None, None
 
 @app.callback(
     Output('time-graph', 'figure'),
+    Output('frame-size-out', 'children'),
+    Output('frame-slider', 'max'),
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
@@ -246,6 +247,7 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     frame_pos = int(frame_pos)
     frame_size = int(frame_size)
     time_graph = {}
+    n_frames = 0
     if list_of_contents is not None:
         content_type, content_string = list_of_contents.split(',')
         file = base64.b64decode(content_string)
@@ -256,7 +258,7 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         frame_size_samp = len(samples) / n_frames
 
         time_graph = draw_audio(samples, list_of_names, [frame_pos*frame_size_samp, (frame_pos+1)*frame_size_samp])
-    return time_graph
+    return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1
 
 @app.callback(
     Output('param-graph', 'figure'),
@@ -272,21 +274,7 @@ def draw_param_graph(value, frame_size):
         graph = draw_plot(dict[value](samples, sample_rate, frame_size), value)
     return graph
 
-@app.callback(
-    Output('frame-size-out', 'children'),
-    Output('frame-slider', 'max'),
-    Input('frame-size-in', 'value'),
-)
-def get_frame(frame_size):
-    global sample_rate, samples
-    if sample_rate is not None and samples is not None:
-        n_frames = math.ceil(len(samples) * 1000 / sample_rate / int(frame_size))
-    else:
-        n_frames = 0
-    return 'Selected frame length: ' + frame_size + ' ms.', n_frames
-
 port = 8050
-
 
 def open_browser():
     webbrowser.open_new("http://localhost:{}".format(port))
