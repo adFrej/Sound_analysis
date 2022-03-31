@@ -135,14 +135,14 @@ def lster(samples, rate, frame_length):
 
 
 def saveCSV(samples, rate, frame_length, path):
-    header = ['frame_start', 'volume', 'ste', 'zcr', 'type']
+    header = ['frame_start', 'volume', 'ste', 'zcr', 'isSilent']
     start = np.arange(0, len(samples)/rate*1000, frame_length)
     vol = volume(samples, rate, frame_length)
     ste_ = ste(samples, rate, frame_length)
     zcr = volume(samples, rate, frame_length)
-    type = vol
+    silent = sr(samples, rate, frame_length)
 
-    data = np.array([start, vol, ste_, zcr, type]).T
+    data = np.array([start, vol, ste_, zcr, silent]).T
 
     with open(path, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
@@ -156,7 +156,7 @@ def saveCSV(samples, rate, frame_length, path):
 
 
 def debug():
-    rate, samples = read_file('./chrzaszcz.wav')
+    rate, samples = read_file('./america.wav')
     samples = samples.astype('int64')
 
     print('dlugosc: ', len(samples)/rate, ' s')
@@ -169,6 +169,7 @@ def debug():
     print('mean: ', mean(samples, rate, 100))
     print('std: ', std(samples, rate, 100))
     print('lster: ', lster(samples, rate, 100))
+    print('speach?: ', lster(samples, rate, 100) > 0.15)
 
     saveCSV(samples, rate, 100, './test.csv')
     # draw_audio(samples)
@@ -278,7 +279,7 @@ if __name__ == '__main__':
     # print(zcr(rate, samples))
     # print(sr(rate, samples))
     # draw_audio(samples).show()
-    debug()
+    # debug()
 
-    # open_browser()
-    # app.run_server(debug=True)
+    open_browser()
+    app.run_server(debug=True)
