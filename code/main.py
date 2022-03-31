@@ -19,13 +19,13 @@ def read_file(file_path):
     return sampling_rate, samples
 
 
-def draw_audio(samples, name, markers=None):
-    fig = px.line(samples)
+def draw_audio(samples, sample_rate, name, markers=None):
+    fig = px.line(x=1000*np.arange(0, len(samples), 1)/sample_rate, y=samples)
     if markers is not None:
         for m in markers:
             fig.add_vline(x=m)
     fig.update_layout(title=name, yaxis_title="Amplitude",
-                      xaxis_title="Time", showlegend=False, margin=dict(t=40))
+                      xaxis_title="Time [ms]", showlegend=False, margin=dict(t=40))
     return fig
 
 
@@ -287,12 +287,11 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
 
         n_frames = math.ceil(len(samples) * 1000 /
                              sample_rate / int(frame_size))
-        frame_size_samp = len(samples) / n_frames
         if frame_pos > n_frames:
             frame_pos = 0
 
-        time_graph = draw_audio(samples, list_of_names, [
-            frame_pos*frame_size_samp, (frame_pos+1)*frame_size_samp])
+        time_graph = draw_audio(samples, sample_rate, list_of_names, [
+            frame_pos*frame_size, (frame_pos+1)*frame_size])
 
         table_data = [{'Volume': volume(samples, sample_rate, frame_size)[frame_pos],
                        'STE': ste(samples, sample_rate, frame_size)[frame_pos],
