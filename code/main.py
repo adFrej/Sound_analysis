@@ -174,8 +174,8 @@ def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
     zcr = volume(samples, rate, frame_length, frame_overlap)
     silent = sr(samples, rate, frame_length, frame_overlap)
 
-    print(len(start), " ", len(end), " ", len(vol), " ",
-          len(ste_), " ", len(zcr), " ", len(silent))
+    # print(len(start), " ", len(end), " ", len(vol), " ",
+    #       len(ste_), " ", len(zcr), " ", len(silent))
 
     data = np.array([start, end, vol, ste_, zcr, silent]).T
 
