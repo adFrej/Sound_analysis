@@ -237,6 +237,22 @@ app.layout = html.Div(children=[
         multiple=False
     ),
 
+    html.H2('Clip-level statistics:'),
+
+    dash.dash_table.DataTable(
+        id='table-gen',
+        data=[],
+        style_cell={'textAlign': 'center', 'width': '25%'},
+    ),
+
+    html.H2('Frame-level statistics:'),
+
+    dash.dash_table.DataTable(
+        id='table-frame',
+        data=[],
+        style_cell={'textAlign': 'center', 'width': '25%'},
+    ),
+
     html.Div(children=['Input frame length [ms]: ',
                        dcc.Input(
                            id='frame-size-in',
@@ -248,9 +264,6 @@ app.layout = html.Div(children=[
 
     html.H3(id='frame-size-out'),
 
-    dcc.Graph(
-        id='time-graph',),
-
     html.H3('Choose frame:'),
 
     dcc.Slider(
@@ -261,21 +274,8 @@ app.layout = html.Div(children=[
         id='frame-slider'
     ),
 
-    html.H2('Frame-level statistics:'),
-
-    dash.dash_table.DataTable(
-        id='table-frame',
-        data=[],
-        style_cell={'textAlign': 'center', 'width': '25%'},
-    ),
-
-    html.H2('Clip-level statistics:'),
-
-    dash.dash_table.DataTable(
-        id='table-gen',
-        data=[],
-        style_cell={'textAlign': 'center', 'width': '25%'},
-    ),
+    dcc.Graph(
+        id='time-graph',),
 
     html.H2('Frame-level statistics over time:'),
 
@@ -340,10 +340,12 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
                        'ZCR - Zero Crossing Rate': zcr(samples, sample_rate, frame_size)[frame_pos],
                        'Silent': sr(samples, sample_rate, frame_size)[frame_pos]}]
 
+        lster_param = lster(samples, sample_rate, frame_size)
+
         table_gen_data = [{'VDR - Volume Dynamic Range': vdr(samples, sample_rate, frame_size),
                        'Mean Volume': mean(samples, sample_rate, frame_size),
                        'VSTD': std(samples, sample_rate, frame_size),
-                       'LSTR - Low Short Time Energy Ratio': lster(samples, sample_rate, frame_size)}]
+                       'LSTR - Low Short Time Energy Ratio': str(lster_param) + ' >= 0.15 -> speech' if lster_param >= 0.15 else str(lster_param) + ' < 0.15 -> music'}]
     return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms.', n_frames-1, \
            table_frame_data, frame_pos, table_gen_data, None
 
