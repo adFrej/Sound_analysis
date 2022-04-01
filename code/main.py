@@ -175,9 +175,6 @@ def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
     zcr = volume(samples, rate, frame_length, frame_overlap)
     silent = sr(samples, rate, frame_length, frame_overlap)
 
-    # print(len(start), " ", len(end), " ", len(vol), " ",
-    #       len(ste_), " ", len(zcr), " ", len(silent))
-
     data = np.array([start, end, vol, ste_, zcr, silent]).T
 
     with open(path, 'w', encoding='UTF8', newline='') as f:
@@ -189,26 +186,6 @@ def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
         # write multiple rows
         writer.writerows(data)
     return 0
-
-
-def debug():
-    rate, samples = read_file('./chrzaszcz.wav')
-
-    print('dlugosc: ', len(samples)/rate, ' s')
-    # print('volume: ', volume(samples, rate, 100))
-    # print('zcr: ', zcr(samples, rate, 100))
-    # print('sr: ', sr(samples, rate, 100))
-    # print('ste: ', ste(samples, rate, 100))
-
-    # print('vdr: ', vdr(samples, rate, 100))
-    # print('mean: ', mean(samples, rate, 100))
-    # print('std: ', std(samples, rate, 100))
-    # print('lster: ', lster(samples, rate, 100))
-    # print('speach?: ', lster(samples, rate, 100) > 0.15)
-    print('VOLUME: ', volume(samples, rate, 100, 30))
-    print('volume: ', volume(samples, rate, 100, 0))
-    saveCSV(samples, rate, 100, './test.csv', 10)
-    # draw_audio(samples)
 
 
 app = dash.Dash(__name__)
