@@ -34,7 +34,7 @@ def draw_plot(values, name, marker=None):
     if marker is not None:
         fig.add_vline(x=marker)
     fig.update_layout(title=name, yaxis_title="Value",
-                      xaxis_title="Time", showlegend=False, margin=dict(t=40))
+                      xaxis_title="Frames", showlegend=False, margin=dict(t=40))
     fig.update_xaxes(dtick=1)
     return fig
 
@@ -450,12 +450,5 @@ def open_browser():
 app.title = 'Sound analysis'
 
 if __name__ == '__main__':
-    # rate, samples = read_file('../wyewoluowac.wav')
-    # print(volume(samples))
-    # print(zcr(rate, samples))
-    # print(sr(rate, samples))
-    # draw_audio(samples).show()
-    # debug()
-
-    # open_browser()
-    app.run_server(debug=True)
+    open_browser()
+    app.run_server(debug=False)
