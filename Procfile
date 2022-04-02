@@ -1,1 +1,1 @@
-web: gunicorn main:server
+web: gunicorn --chdir code main:server
