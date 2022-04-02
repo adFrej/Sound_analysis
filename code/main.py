@@ -428,5 +428,5 @@ def open_browser():
 app.title = 'Sound analysis'
 
 if __name__ == '__main__':
-    open_browser()
+    # open_browser()
     app.run_server(debug=False)
