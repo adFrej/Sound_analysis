@@ -162,7 +162,7 @@ def lster(samples, rate, frame_length):
     return sum/(2*i)
 
 
-def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
+def saveCSV(samples, rate, frame_length, frame_overlap=0, path = None):
     header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'isSilent']
 
     start = np.arange(0,  len(samples)/rate*1000 -
@@ -177,7 +177,18 @@ def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
 
     data = np.array([start, end, vol, ste_, zcr, silent]).T
 
-    with open(path, 'w', encoding='UTF8', newline='') as f:
+    if path is not None:
+        with open(path, 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+
+            # write the header
+            writer.writerow(header)
+
+            # write multiple rows
+            writer.writerows(data)
+        return None
+
+    with io.StringIO() as f:
         writer = csv.writer(f)
 
         # write the header
@@ -185,7 +196,9 @@ def saveCSV(samples, rate, frame_length, path, frame_overlap=0):
 
         # write multiple rows
         writer.writerows(data)
-    return 0
+
+        content = f.getvalue()
+    return content
 
 
 app = dash.Dash(__name__)
@@ -282,7 +295,21 @@ app.layout = html.Div(children=[
     html.Button(
         'Download statistics to csv',
         id='download-button',
+        style={
+            'width': '50%',
+            'height': '40px',
+            'lineHeight': '40px',
+            'borderWidth': '1px',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'display': 'block',
+            'margin-left': 'auto',
+            'margin-right': 'auto',
+            'margin-top': '10px',
+            'margin-bottom': '10px',
+        }
     ),
+    dcc.Download(id="download-csv"),
 ])
 
 
@@ -299,7 +326,6 @@ file_name_global = None
     Output('table-frame', 'data'),
     Output('frame-slider', 'value'),
     Output('table-gen', 'data'),
-    Output('download-button', 'n_clicks'),
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
@@ -350,7 +376,7 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
                        'VSTD': std(samples, sample_rate, frame_size),
                        'LSTR - Low Short Time Energy Ratio': str(lster_param) + ' >= 0.15 -> speech' if lster_param >= 0.15 else str(lster_param) + ' < 0.15 -> music'}]
     return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms with overlap: ' + str(frame_overlap) + ' ms.', \
-           n_frames-1, table_frame_data, frame_pos, table_gen_data, None
+           n_frames-1, table_frame_data, frame_pos, table_gen_data
 
 
 @app.callback(
@@ -379,42 +405,17 @@ def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
 
 
 @app.callback(
-    Output('download-button', 'style'),
+    Output('download-csv', 'data'),
     Input('download-button', 'n_clicks'),
+    prevent_initial_call=True,
 )
 def button_on_click(n_clicks):
     global sample_rate, samples, frame_size_global, file_name_global, frame_overlap_global
-    if n_clicks == None:
-        button_style = {
-            'width': '50%',
-            'height': '40px',
-            'lineHeight': '40px',
-            'borderWidth': '1px',
-            'borderRadius': '5px',
-            'textAlign': 'center',
-            'display': 'block',
-            'margin-left': 'auto',
-            'margin-right': 'auto',
-            'margin-top': '10px',
-            'margin-bottom': '10px',
-        }
-    else:
-        button_style = {
-            'width': '50%',
-            'height': '40px',
-            'borderWidth': '1px',
-            'borderRadius': '5px',
-            'textAlign': 'center',
-            'display': 'block',
-            'margin-left': 'auto',
-            'margin-right': 'auto',
-            'margin-top': '10px',
-            'margin-bottom': '10px',
-            'background-color': 'DeepSkyBlue',
-        }
-        if samples is not None and sample_rate is not None:
-            saveCSV(samples, sample_rate, frame_size_global, str.replace(file_name_global, '.wav', '.csv'), frame_overlap_global)
-    return button_style
+    download_data = None
+    if samples is not None and sample_rate is not None:
+        file = saveCSV(samples, sample_rate, frame_size_global, frame_overlap_global)
+        download_data = dict(content=file, filename=str.replace(file_name_global, '.wav', '.csv'))
+    return download_data
 
 
 port = 8050
