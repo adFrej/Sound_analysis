@@ -18,8 +18,14 @@ class AudioFile:
         self.file_name = file_name
         self.file_path = file_path
         self.samples, self.sample_rate = self.read_file()
-        self.frame_length = frame_length
-        self.frame_overlap = frame_overlap
+        self.frame_length, self.frame_overlap = self.set_frames(frame_length, frame_overlap)
+
+    def set_frames(self, frame_length, frame_overlap):
+        if frame_length > 1000 * len(self.samples) // self.sample_rate // 2:
+            frame_length = 1000 * len(self.samples) // self.sample_rate // 2
+        if frame_overlap > frame_length - 1:
+            frame_overlap = frame_length - 1
+        return frame_length, frame_overlap
 
     def read_file(self):
         sampling_rate, samples = wavfile.read(self.file_path)
@@ -356,19 +362,18 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
         file = base64.b64decode(content_string)
         file = io.BytesIO(file)
         audio_file = AudioFile(list_of_names, file, frame_size, frame_overlap)
-
-        if frame_size > 1000 * len(audio_file.samples) // audio_file.sample_rate // 2:
-            frame_size = 1000 * len(audio_file.samples) // audio_file.sample_rate // 2
-        if frame_overlap > frame_size - 1:
-            frame_overlap = frame_size - 1
+        frame_size=audio_file.frame_length
+        frame_overlap=audio_file.frame_overlap
 
         n_frames = math.ceil(
-            (len(audio_file.samples) * 1000 / audio_file.sample_rate - frame_overlap) // (frame_size - frame_overlap))
+            (len(audio_file.samples) * 1000 / audio_file.sample_rate - audio_file.frame_overlap) // (audio_file.frame_length - audio_file.frame_overlap))
         if frame_pos > n_frames:
             frame_pos = 0
 
         time_graph = audio_file.draw_audio(list_of_names, [
-            frame_pos*(frame_size-frame_overlap), frame_pos*(frame_size-frame_overlap)+frame_size  if frame_pos<n_frames-1 else 1000*len(audio_file.samples)/audio_file.sample_rate])
+            frame_pos*(audio_file.frame_length-audio_file.frame_overlap),
+            frame_pos*(audio_file.frame_length-audio_file.frame_overlap)
+            +audio_file.frame_length  if frame_pos<n_frames-1 else 1000*len(audio_file.samples)/audio_file.sample_rate])
 
         table_frame_data = [{'Volume': audio_file.volume()[frame_pos],
                        'STE - Short Time Energy': audio_file.ste()[frame_pos],
@@ -399,12 +404,7 @@ def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
     frame_pos = int(frame_pos)
     frame_overlap = int(frame_overlap)
     if audio_file is not None and value is not None:
-        if frame_size > 1000 * len(audio_file.samples) // audio_file.sample_rate // 2:
-            frame_size = 1000 * len(audio_file.samples) // audio_file.sample_rate // 2
-        if frame_overlap > frame_size - 1:
-            frame_overlap = frame_size - 1
-        audio_file.frame_length = frame_size
-        audio_file.frame_overlap = frame_overlap
+        audio_file.set_frames(frame_size, frame_overlap)
         dict = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr, 'STE': audio_file.ste}
         graph = audio_file.draw_plot(dict[value](), value, frame_pos)
     return graph
@@ -442,7 +442,7 @@ def widmo(samples, okno=""):
         return np.fft.rfft(samples*np.hanning(len(samples)))
     if okno=="blackman":
         return np.fft.rfft(samples*np.blackman(len(samples)))
-    
+
     return np.fft.rfft(samples)
 
 
@@ -455,15 +455,15 @@ app.title = 'Sound analysis'
 
 if __name__ == '__main__':
     # open_browser()
-    #app.run_server(debug=False)
-    pp = AudioFile('dun','./dun.wav',None,None)
-    [samples, sampling_rate] = pp.read_file()
-    print(len(samples),"samples ",samples)
-    w = np.abs(widmo(samples, "blackman"))/len(samples)*2
-    f = freq(len(samples), 1/sampling_rate)
-    print(len(w),"widmo ",w)
-    print(len(f),"frequ ",f)
-    fig = px.line(x=f, y=w)
-    fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
-                      xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
-    fig.show()
+    app.run_server(debug=True)
+    # pp = AudioFile('dun','./dun.wav',None,None)
+    # [samples, sampling_rate] = pp.read_file()
+    # print(len(samples),"samples ",samples)
+    # w = np.abs(widmo(samples, "blackman"))/len(samples)*2
+    # f = freq(len(samples), 1/sampling_rate)
+    # print(len(w),"widmo ",w)
+    # print(len(f),"frequ ",f)
+    # fig = px.line(x=f, y=w)
+    # fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
+    #                   xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
+    # fig.show()
