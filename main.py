@@ -42,13 +42,22 @@ class AudioFile:
         return fig
 
 
-    def draw_plot(self, values, name, marker=None):
+    def draw_param_plot(self, values, name, marker=None):
         fig = px.line(values)
         if marker is not None:
             fig.add_vline(x=marker)
         fig.update_layout(title=name, yaxis_title="Value",
                           xaxis_title="Frames", showlegend=False, margin=dict(t=40))
         fig.update_xaxes(dtick=1)
+        return fig
+
+
+    def draw_window_plot(self, window_fun):
+        w = np.abs(widmo(self.samples, window_fun)) / len(self.samples) * 2
+        f = freq(len(self.samples), 1 / self.sample_rate)
+        fig = px.line(x=f, y=w)
+        fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
+                          xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
         return fig
 
 
@@ -312,6 +321,12 @@ app.layout = html.Div(children=[
         id='param-graph',
     ),
 
+    dcc.Dropdown(['Rectangle', 'Hamming', 'Hann', 'Blackman'], id='window-dropdown'),
+
+    dcc.Graph(
+        id='window-rate-graph',
+    ),
+
     html.Button(
         'Download statistics to csv',
         id='download-button',
@@ -329,6 +344,7 @@ app.layout = html.Div(children=[
             'margin-bottom': '10px',
         }
     ),
+
     dcc.Download(id="download-csv"),
 ])
 
@@ -406,7 +422,7 @@ def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
     if audio_file is not None and value is not None:
         audio_file.set_frames(frame_size, frame_overlap)
         dict = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr, 'STE': audio_file.ste}
-        graph = audio_file.draw_plot(dict[value](), value, frame_pos)
+        graph = audio_file.draw_param_plot(dict[value](), value, frame_pos)
     return graph
 
 
@@ -423,6 +439,17 @@ def button_on_click(n_clicks):
         download_data = dict(content=file, filename=str.replace(audio_file.file_name, '.wav', '.csv'))
     return download_data
 
+@app.callback(
+    Output('window-rate-graph', 'figure'),
+    Input('window-dropdown', 'value'),
+)
+def draw_window_graph(value):
+    global audio_file
+    graph = {}
+    if audio_file is not None and value is not None:
+        dict = {'Rectangle': '', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
+        graph = audio_file.draw_window_plot(dict[value])
+    return graph
 
 port = 8050
 
@@ -434,13 +461,13 @@ def open_browser():
 # VVVVVVVVVVVVVVVVVVVVVVV projekt 2 VVVVVVVVVVVVVVVVVVVVVVVVVV
 
 
-def widmo(samples, okno=""):
-    okno = okno.lower()
-    if okno=="hamming":
+def widmo(samples, window_fun=""):
+    window_fun = window_fun.lower()
+    if window_fun=="hamming":
         return np.fft.rfft(samples*np.hamming(len(samples)))
-    if okno=="hann":
+    if window_fun=="hann":
         return np.fft.rfft(samples*np.hanning(len(samples)))
-    if okno=="blackman":
+    if window_fun=="blackman":
         return np.fft.rfft(samples*np.blackman(len(samples)))
 
     return np.fft.rfft(samples)
@@ -472,7 +499,7 @@ app.title = 'Sound analysis'
 if __name__ == '__main__':
     # open_browser()
     app.run_server(debug=True)
-    # pp = AudioFile('dun','./dun.wav',None,None)
+    # pp = AudioFile('dun','./dun.wav',0,0)
     # [samples, sampling_rate] = pp.read_file()
     # print(len(samples),"samples ",samples)
     # w = np.abs(widmo(samples, "blackman"))/len(samples)*2
