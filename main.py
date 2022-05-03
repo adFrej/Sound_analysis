@@ -449,7 +449,23 @@ def widmo(samples, okno=""):
 def freq(samples,scale):
     return np.fft.rfftfreq(samples,scale)
 
+def spectral_centroid(widmo, freq):
+    return np.sum(widmo*freq)/np.sum(widmo)
 
+def effective_bandwidth(widmo, freq, spectralCentroid):
+    return np.sqrt(np.sum(np.square(freq - spectralCentroid) * np.square(widmo)) / np.sum(np.square(widmo)))
+
+def SFM(widmo,freq, b):
+    ih = freq.index(freq[freq > b].min())
+    il = freq.index(freq[freq < b].max())
+    return np.power(np.prod(np.square(widmo[il:ih+1])), 1/(freq[ih]-freq[il]+1)) / np.sum(np.square(widmo[il:ih+1])) * (freq[ih]-freq[il]+1)
+
+def SCF(widmo,freq, b):
+    m = np.max(np.square(widmo))
+    ih = freq.index(freq[freq > b].min())
+    il = freq.index(freq[freq < b].max())
+
+    return m * (freq[ih]-freq[il]+1) /  np.sum(np.square(widmo[il:ih+1]))
 
 app.title = 'Sound analysis'
 
