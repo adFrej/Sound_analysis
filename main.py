@@ -426,8 +426,30 @@ def open_browser():
     webbrowser.open_new("http://localhost:{}".format(port))
 
 
+# VVVVVVVVVVVVVVVVVVVVVVV projekt 2 VVVVVVVVVVVVVVVVVVVVVVVVVV
+
+
+def widmo(samples):
+    return np.fft.rfft(samples)
+
+
+def freq(samples,scale):
+    return np.fft.rfftfreq(samples,scale)
+
+
+
 app.title = 'Sound analysis'
 
 if __name__ == '__main__':
     # open_browser()
-    app.run_server(debug=False)
+    #app.run_server(debug=False)
+    [sampling_rate, samples] =read_file('./dun.wav')
+    print(len(samples),"samples ",samples)
+    w = np.abs(widmo(samples))/len(samples)*2
+    f = freq(len(samples), 1/sampling_rate)
+    print(len(w),"widmo ",w)
+    print(len(f),"frequ ",f)
+    fig = px.line(x=f, y=w)
+    fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
+                      xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
+    fig.show()
