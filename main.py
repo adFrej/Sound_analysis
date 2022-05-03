@@ -53,123 +53,79 @@ class AudioFile:
 
 
     def draw_window_plot(self, window_fun):
-        w = np.abs(widmo(self.samples, window_fun)) / len(self.samples) * 2
-        f = freq(len(self.samples), 1 / self.sample_rate)
+        w = self.widmo(window_fun=window_fun) / len(self.samples) * 2
+        f = self.freq()
         fig = px.line(x=f, y=w)
         fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
                           xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
         return fig
 
 
-    def volume(self, samples_scope=None, no_samples=False):
+    def count_frames(self, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+        return math.ceil((len(samples_scope) * 1000 / self.sample_rate - self.frame_overlap) // (self.frame_length - self.frame_overlap))
+
+
+    def fun_over_frames(self, fun, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
 
-        if no_samples:
-            return np.sqrt(np.sum(samples_scope*samples_scope)/len(samples_scope))
-
-        n_frames = math.ceil(
-            (len(samples_scope)*1000/self.sample_rate - self.frame_overlap) // (self.frame_length-self.frame_overlap))
-
-        vol = [0] * n_frames
+        n_frames = self.count_frames(samples_scope)
+        output = [0] * n_frames
 
         for i in range(n_frames-1):
             scope = samples_scope[i*(self.frame_length-self.frame_overlap)*self.sample_rate //
                             1000: ((i+1)*self.frame_length-i*self.frame_overlap)*self.sample_rate//1000]
-            vol[i] = np.sqrt(np.sum(np.square(scope))/len(scope))
+            output[i] = fun(scope)
 
         scope = samples_scope[n_frames*(self.frame_length-self.frame_overlap)*self.sample_rate //
                         1000:]
-        vol[-1] = np.sqrt(np.sum(np.square(scope))/len(scope))
-        return vol
+        output[-1] = fun(scope)
+        return output
 
 
-    def ste(self, samples_scope=None, no_samples=False):
+    def volume(self, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+
+        return np.sqrt(np.sum(samples_scope*samples_scope)/len(samples_scope))
+
+
+    def ste(self, samples_scope=None):
         if samples_scope is None:
             samples_scope = self.samples
 
-        if no_samples:
-            return np.sum(samples_scope*samples_scope)/len(samples_scope)
-
-        n_frames = math.ceil(
-            (len(samples_scope)*1000/self.sample_rate - self.frame_overlap) // (self.frame_length-self.frame_overlap))
-        ste = [0] * n_frames
-
-        for i in range(n_frames-1):
-
-            scope = samples_scope[i*(self.frame_length-self.frame_overlap)*self.sample_rate //
-                            1000: ((i+1)*self.frame_length-i*self.frame_overlap)*self.sample_rate//1000]
-            ste[i] = np.sum(np.square(scope))/len(scope)
-        scope = samples_scope[n_frames*(self.frame_length-self.frame_overlap)*self.sample_rate //
-                        1000:]
-        ste[-1] = np.sum(scope*scope)/len(scope)
-
-        return ste
+        return np.sum(samples_scope*samples_scope)/len(samples_scope)
 
 
-    def zcr(self, samples_scope=None,no_samples=False):
+    def zcr(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
 
-        if no_samples:
-            return np.sum(np.abs(np.subtract(np.sign(samples_scope[1:]), np.sign(samples_scope[:-1]))
-                                 )) * self.sample_rate / len(samples_scope) / 4
-
-        n_frames = math.ceil(
-            (len(samples_scope)*1000/self.sample_rate - self.frame_overlap) // (self.frame_length-self.frame_overlap))
-
-        zcr = [0] * n_frames
-
-        for i in range(n_frames-1):
-
-            scope = samples_scope[i*(self.frame_length-self.frame_overlap)*self.sample_rate //
-                            1000: ((i+1)*self.frame_length-i*self.frame_overlap)*self.sample_rate//1000]
-            zcr[i] = np.sum(np.abs(np.subtract(np.sign(scope[1:]), np.sign(scope[:-1]))
-                                   )) * self.sample_rate / len(scope) / 4
-
-        scope = samples_scope[n_frames*(self.frame_length-self.frame_overlap)*self.sample_rate //
-                        1000:]
-        zcr[-1] = np.sum(np.abs(np.subtract(np.sign(scope[1:]), np.sign(scope[:-1]))
-                                )) * self.sample_rate / len(scope) / 4
-
-        return zcr
+        return np.sum(np.abs(np.subtract(np.sign(samples_scope[1:]), np.sign(samples_scope[:-1]))
+                             )) * self.sample_rate / len(samples_scope) / 4
 
 
-    def sr(self):
+    def sr(self, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
 
-        n_frames = math.ceil(
-            (len(self.samples)*1000/self.sample_rate - self.frame_overlap) // (self.frame_length-self.frame_overlap))
-
-        sr = [0] * n_frames
-
-        for i in range(n_frames-1):
-            scope = self.samples[i*(self.frame_length-self.frame_overlap)*self.sample_rate //
-                            1000: ((i+1)*self.frame_length-i*self.frame_overlap)*self.sample_rate//1000]
-            sr[i] = self.volume(samples_scope=scope, no_samples=True) < 100 and self.zcr(
-                samples_scope=scope, no_samples=True) > 300
-
-        scope = self.samples[n_frames*(self.frame_length-self.frame_overlap)*self.sample_rate //
-                        1000:]
-        sr[-1] = self.volume(samples_scope=scope, no_samples=True) < 100 and self.zcr(
-            samples_scope=scope, no_samples=True) > 300
-
-        return sr
-
-    #      VVVV Klip scope VVVV
+        return self.volume(samples_scope=samples_scope) < 100 and self.zcr(samples_scope=samples_scope) > 300
 
 
     def vdr(self):
-        v = self.volume()
+        v = self.fun_over_frames(self.volume)
         return (max(v) - min(v)) / max(v)
 
 
     def mean(self):
-        vol = self.volume()
+        vol = self.fun_over_frames(self.volume)
         return sum(vol)/len(vol)
 
 
     def std(self):
-        return statistics.stdev(self.volume())
+        return statistics.stdev(self.fun_over_frames(self.volume))
 
 
     def lster(self):
@@ -179,15 +135,68 @@ class AudioFile:
 
         for i in range(math.ceil(len(self.samples)/self.sample_rate)):
             avSTE.append(
-                self.ste(samples_scope=self.samples[i*self.sample_rate: min((i+1)*self.sample_rate, len(self.samples))], no_samples=True))
+                self.ste(samples_scope=self.samples[i*self.sample_rate: min((i+1)*self.sample_rate, len(self.samples))]))
 
         for i in range(math.ceil(len(self.samples)*1000/(self.frame_length*self.sample_rate))):
             av_index = math.floor(i*self.frame_length / 1000)
 
             sum = sum + (0.5*avSTE[av_index] - self.ste(samples_scope=self.samples[i *
-                                                           self.frame_length: min((i+1)*self.frame_length, len(self.samples))], no_samples=True) > 0)
+                                                           self.frame_length: min((i+1)*self.frame_length, len(self.samples))]) > 0)
 
         return sum/(2*i)
+
+
+    def widmo(self, samples_scope=None, window_fun=""):
+        if samples_scope is None:
+            samples_scope=self.samples
+        window_fun = window_fun.lower()
+        if window_fun == "hamming":
+            return np.abs(np.fft.rfft(samples_scope * np.hamming(len(samples_scope))))
+        if window_fun == "hann":
+            return np.abs(np.fft.rfft(samples_scope * np.hanning(len(samples_scope))))
+        if window_fun == "blackman":
+            return np.abs(np.fft.rfft(samples_scope * np.blackman(len(samples_scope))))
+        return np.abs(np.fft.rfft(samples_scope))
+
+    def freq(self, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+        return np.fft.rfftfreq(len(samples_scope), 1/self.sample_rate)
+
+    def spectral_centroid(self, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+        widmo = self.widmo(samples_scope)
+        freq = self.freq(samples_scope)
+        return np.sum(widmo * freq) / np.sum(widmo)
+
+    def effective_bandwidth(self, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+        widmo = self.widmo(samples_scope)
+        freq = self.freq(samples_scope)
+        return np.sqrt(np.sum(np.square(freq - self.spectral_centroid(samples_scope)) * np.square(widmo)) / np.sum(np.square(widmo)))
+
+    def SFM(self, b, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+        widmo = self.widmo(samples_scope)
+        freq = self.freq(samples_scope)
+        ih = freq.index(freq[freq > b].min())
+        il = freq.index(freq[freq < b].max())
+        return np.power(np.prod(np.square(widmo[il:ih + 1])), 1 / (freq[ih] - freq[il] + 1)) / np.sum(
+            np.square(widmo[il:ih + 1])) * (freq[ih] - freq[il] + 1)
+
+    def SCF(self, b, samples_scope=None):
+        if samples_scope is None:
+            samples_scope=self.samples
+        widmo = self.widmo(samples_scope)
+        freq = self.freq(samples_scope)
+        m = np.max(np.square(widmo))
+        ih = freq.index(freq[freq > b].min())
+        il = freq.index(freq[freq < b].max())
+
+        return m * (freq[ih] - freq[il] + 1) / np.sum(np.square(widmo[il:ih + 1]))
 
 
     def saveCSV(self, path = None):
@@ -315,7 +324,7 @@ app.layout = html.Div(children=[
 
     html.H2('Frame-level statistics over time:'),
 
-    dcc.Dropdown(['Volume', 'ZCR', 'STE'], id='param-dropdown'),
+    dcc.Dropdown(['Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth'], id='param-dropdown'),
 
     dcc.Graph(
         id='param-graph',
@@ -391,10 +400,10 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
             frame_pos*(audio_file.frame_length-audio_file.frame_overlap)
             +audio_file.frame_length  if frame_pos<n_frames-1 else 1000*len(audio_file.samples)/audio_file.sample_rate])
 
-        table_frame_data = [{'Volume': audio_file.volume()[frame_pos],
-                       'STE - Short Time Energy': audio_file.ste()[frame_pos],
-                       'ZCR - Zero Crossing Rate': audio_file.zcr()[frame_pos],
-                       'Silent': audio_file.sr()[frame_pos]}]
+        table_frame_data = [{'Volume': audio_file.fun_over_frames(audio_file.volume)[frame_pos],
+                       'STE - Short Time Energy': audio_file.fun_over_frames(audio_file.ste)[frame_pos],
+                       'ZCR - Zero Crossing Rate': audio_file.fun_over_frames(audio_file.zcr)[frame_pos],
+                       'Silent': audio_file.fun_over_frames(audio_file.sr)[frame_pos]}]
 
         lster_param = audio_file.lster()
 
@@ -421,8 +430,10 @@ def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
     frame_overlap = int(frame_overlap)
     if audio_file is not None and value is not None:
         audio_file.set_frames(frame_size, frame_overlap)
-        dict = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr, 'STE': audio_file.ste}
-        graph = audio_file.draw_param_plot(dict[value](), value, frame_pos)
+        dict = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr,
+                'STE': audio_file.ste, 'Spectral Centroid': audio_file.spectral_centroid,
+                'Effective Bandwidth': audio_file.effective_bandwidth}
+        graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict[value]), value, frame_pos)
     return graph
 
 
@@ -456,43 +467,6 @@ port = 8050
 
 def open_browser():
     webbrowser.open_new("http://localhost:{}".format(port))
-
-
-# VVVVVVVVVVVVVVVVVVVVVVV projekt 2 VVVVVVVVVVVVVVVVVVVVVVVVVV
-
-
-def widmo(samples, window_fun=""):
-    window_fun = window_fun.lower()
-    if window_fun=="hamming":
-        return np.fft.rfft(samples*np.hamming(len(samples)))
-    if window_fun=="hann":
-        return np.fft.rfft(samples*np.hanning(len(samples)))
-    if window_fun=="blackman":
-        return np.fft.rfft(samples*np.blackman(len(samples)))
-
-    return np.fft.rfft(samples)
-
-
-def freq(samples,scale):
-    return np.fft.rfftfreq(samples,scale)
-
-def spectral_centroid(widmo, freq):
-    return np.sum(widmo*freq)/np.sum(widmo)
-
-def effective_bandwidth(widmo, freq, spectralCentroid):
-    return np.sqrt(np.sum(np.square(freq - spectralCentroid) * np.square(widmo)) / np.sum(np.square(widmo)))
-
-def SFM(widmo,freq, b):
-    ih = freq.index(freq[freq > b].min())
-    il = freq.index(freq[freq < b].max())
-    return np.power(np.prod(np.square(widmo[il:ih+1])), 1/(freq[ih]-freq[il]+1)) / np.sum(np.square(widmo[il:ih+1])) * (freq[ih]-freq[il]+1)
-
-def SCF(widmo,freq, b):
-    m = np.max(np.square(widmo))
-    ih = freq.index(freq[freq > b].min())
-    il = freq.index(freq[freq < b].max())
-
-    return m * (freq[ih]-freq[il]+1) /  np.sum(np.square(widmo[il:ih+1]))
 
 app.title = 'Sound analysis'
 
