@@ -434,7 +434,15 @@ def open_browser():
 # VVVVVVVVVVVVVVVVVVVVVVV projekt 2 VVVVVVVVVVVVVVVVVVVVVVVVVV
 
 
-def widmo(samples):
+def widmo(samples, okno=""):
+    okno = okno.lower()
+    if okno=="hamming":
+        return np.fft.rfft(samples*np.hamming(len(samples)))
+    if okno=="hann":
+        return np.fft.rfft(samples*np.hanning(len(samples)))
+    if okno=="blackman":
+        return np.fft.rfft(samples*np.blackman(len(samples)))
+    
     return np.fft.rfft(samples)
 
 
@@ -451,7 +459,7 @@ if __name__ == '__main__':
     pp = AudioFile('dun','./dun.wav',None,None)
     [samples, sampling_rate] = pp.read_file()
     print(len(samples),"samples ",samples)
-    w = np.abs(widmo(samples))/len(samples)*2
+    w = np.abs(widmo(samples, "blackman"))/len(samples)*2
     f = freq(len(samples), 1/sampling_rate)
     print(len(w),"widmo ",w)
     print(len(f),"frequ ",f)
