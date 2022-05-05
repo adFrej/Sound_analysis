@@ -20,7 +20,7 @@ class AudioFile:
         self.samples, self.sample_rate = self.read_file()
         self.frame_length, self.frame_overlap = self.set_frames(frame_length, frame_overlap)
         self.b = 1000
-        self.window_fun = ""
+        self.window_fun = "rectangle"
 
     def set_frames(self, frame_length, frame_overlap):
         if frame_length > 1000 * len(self.samples) // self.sample_rate // 2:
@@ -212,7 +212,7 @@ class AudioFile:
 
 
     def saveCSV(self, path = None):
-        header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'fc', 'bw', 'isSilent']
+        header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'isSilent', 'fc', 'bw', 'scf'+str(self.b)+str(self.window_fun)]
 
         start = np.arange(0,  len(self.samples)/self.sample_rate*1000 -
                           self.frame_length+1, self.frame_length-self.frame_overlap)
@@ -225,8 +225,9 @@ class AudioFile:
         silent = self.fun_over_frames(self.sr)
         spectralC = np.around(self.fun_over_frames(self.spectral_centroid),2)
         effectiveB = np.around(self.fun_over_frames(self.effective_bandwidth),2)
+        scf = np.around(self.fun_over_frames(self.scf),2)
 
-        data = np.array([start, end, vol, ste_, zcr, spectralC, effectiveB, silent]).T
+        data = np.array([start, end, vol, ste_, zcr, silent, spectralC, effectiveB, scf]).T
 
         if path is not None:
             with open(path, 'w', encoding='UTF8', newline='') as f:
@@ -471,7 +472,7 @@ def draw_param_graph(param_value, window_value, frame_size, frame_overlap, frame
                 'STE': audio_file.ste, 'Spectral Centroid': audio_file.spectral_centroid,
                 'Effective Bandwidth': audio_file.effective_bandwidth,
                 'SFM': audio_file.sfm, 'SCF': audio_file.scf}
-        dict_window = {'Rectangle': '', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
+        dict_window = {'Rectangle': 'rectangle', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
         audio_file.b = b
         audio_file.window_fun = dict_window[window_value]
         graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict_param[param_value]), param_value, frame_pos)
@@ -498,7 +499,7 @@ def draw_window_graph(value):
     global audio_file
     graph = {}
     if audio_file is not None and value is not None:
-        dict_window = {'Rectangle': '', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
+        dict_window = {'Rectangle': 'rectangle', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
         audio_file.window_fun = dict_window[value]
         graph = audio_file.draw_window_plot()
     return graph
