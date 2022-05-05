@@ -200,19 +200,19 @@ class AudioFile:
 
 
     def saveCSV(self, path = None):
-        header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'spectralCentroid', 'effectiveBandwdith', 'isSilent']
+        header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'fc', 'bw', 'isSilent']
 
         start = np.arange(0,  len(self.samples)/self.sample_rate*1000 -
                           self.frame_length+1, self.frame_length-self.frame_overlap)
-        end = np.append(np.arange(self.frame_length, len(self.samples)/self.sample_rate*1000 - self.frame_length +
-                        self.frame_overlap,  self.frame_length-self.frame_overlap), len(self.samples)/self.sample_rate*1000)
+        end = np.around(np.append(np.arange(self.frame_length, len(self.samples)/self.sample_rate*1000 - self.frame_length +
+                        self.frame_overlap,  self.frame_length-self.frame_overlap), len(self.samples)/self.sample_rate*1000),2)
 
-        vol = self.fun_over_frames(self.volume)
-        ste_ = self.fun_over_frames(self.ste)
-        zcr = self.fun_over_frames(self.zcr)
+        vol = np.around(self.fun_over_frames(self.volume),2)
+        ste_ = np.around(self.fun_over_frames(self.ste),2)
+        zcr = np.around(self.fun_over_frames(self.zcr),2)
         silent = self.fun_over_frames(self.sr)
-        spectralC = self.fun_over_frames(self.spectral_centroid)
-        effectiveB = self.fun_over_frames(self.effective_bandwidth)
+        spectralC = np.around(self.fun_over_frames(self.spectral_centroid),2)
+        effectiveB = np.around(self.fun_over_frames(self.effective_bandwidth),2)
 
         data = np.array([start, end, vol, ste_, zcr, spectralC, effectiveB, silent]).T
 
