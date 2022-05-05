@@ -19,6 +19,8 @@ class AudioFile:
         self.file_path = file_path
         self.samples, self.sample_rate = self.read_file()
         self.frame_length, self.frame_overlap = self.set_frames(frame_length, frame_overlap)
+        self.b = 1000
+        self.window_fun = ""
 
     def set_frames(self, frame_length, frame_overlap):
         if frame_length > 1000 * len(self.samples) // self.sample_rate // 2:
@@ -52,8 +54,8 @@ class AudioFile:
         return fig
 
 
-    def draw_window_plot(self, window_fun):
-        w = self.widmo(window_fun=window_fun) / len(self.samples) * 2
+    def draw_window_plot(self):
+        w = self.widmo() / len(self.samples) * 2
         f = self.freq()
         fig = px.line(x=f, y=w)
         fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
@@ -68,7 +70,7 @@ class AudioFile:
         return math.ceil((len(samples_scope) * 1000 / self.sample_rate - self.frame_overlap) // (self.frame_length - self.frame_overlap))
 
 
-    def fun_over_frames(self, fun, b=None, samples_scope=None):
+    def fun_over_frames(self, fun, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
 
@@ -78,11 +80,11 @@ class AudioFile:
         for i in range(n_frames-1):
             scope = samples_scope[i*(self.frame_length-self.frame_overlap)*self.sample_rate //
                             1000: ((i+1)*self.frame_length-i*self.frame_overlap)*self.sample_rate//1000]
-            output[i] = fun(scope) if b is None else fun(b, scope)
+            output[i] = fun(scope)
 
         scope = samples_scope[n_frames*(self.frame_length-self.frame_overlap)*self.sample_rate //
                         1000:]
-        output[-1] = fun(scope) if b is None else fun(b, scope)
+        output[-1] = fun(scope)
         return output
 
 
@@ -147,15 +149,15 @@ class AudioFile:
         return sum/(2*i)
 
 
-    def widmo(self, samples_scope=None, window_fun=""):
+    def widmo(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
-        window_fun = window_fun.lower()
-        if window_fun == "hamming":
+        self.window_fun = self.window_fun.lower()
+        if self.window_fun == "hamming":
             return np.abs(np.fft.rfft(samples_scope * np.hamming(len(samples_scope))))
-        if window_fun == "hann":
+        if self.window_fun == "hann":
             return np.abs(np.fft.rfft(samples_scope * np.hanning(len(samples_scope))))
-        if window_fun == "blackman":
+        if self.window_fun == "blackman":
             return np.abs(np.fft.rfft(samples_scope *np.blackman(len(samples_scope))))
         return np.abs(np.fft.rfft(samples_scope))
 
@@ -178,14 +180,14 @@ class AudioFile:
         freq = self.freq(samples_scope)
         return np.sqrt(np.sum(np.square(freq - self.spectral_centroid(samples_scope)) * np.square(widmo)) / np.sum(np.square(widmo)))
 
-    def sfm(self, b, samples_scope=None):
+    def sfm(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
         widmo = self.widmo(samples_scope)
         freq = self.freq(samples_scope)
-        if b > freq.max():
-            b = int(freq.max())
-        ih = np.where(freq == freq[freq >= b].min())[0][0]
+        if self.b > freq.max():
+            self.b = int(freq.max())
+        ih = np.where(freq == freq[freq >= self.b].min())[0][0]
         il = ih-1
         if il < 0:
             il += 1
@@ -193,15 +195,15 @@ class AudioFile:
         return np.power(np.prod(np.square(widmo[il:ih + 1])), 1 / (freq[ih] - freq[il] + 1)) / np.sum(
             np.square(widmo[il:ih + 1])) * (freq[ih] - freq[il] + 1)
 
-    def scf(self, b, samples_scope=None):
+    def scf(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
         widmo = self.widmo(samples_scope)
         freq = self.freq(samples_scope)
         m = np.max(np.square(widmo))
-        if b > freq.max():
-            b = int(freq.max())
-        ih = np.where(freq == freq[freq >= b].min())[0][0]
+        if self.b > freq.max():
+            self.b = int(freq.max())
+        ih = np.where(freq == freq[freq >= self.b].min())[0][0]
         il = ih-1
         if il < 0:
             il += 1
@@ -336,22 +338,24 @@ app.layout = html.Div(children=[
 
     html.H2('Frame-level statistics over time:'),
 
-    dcc.Dropdown(['Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth', 'SFM', 'SCF'], id='param-dropdown'),
+    dcc.Dropdown(['Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth', 'SFM', 'SCF'],
+                 value='Volume', id='param-dropdown'),
 
     html.Div(children=['Input frequency band: ',
                        dcc.Input(
                            id='b-in',
-                           value='20',
+                           value='1000',
                            type='number',
                            min=0,
                            style={'width': '50px'},),
                        ], id='b-div'),
 
+    dcc.Dropdown(['Rectangle', 'Hamming', 'Hann', 'Blackman'],
+                 value='Rectangle', id='window-dropdown'),
+
     dcc.Graph(
         id='param-graph',
     ),
-
-    dcc.Dropdown(['Rectangle', 'Hamming', 'Hann', 'Blackman'], id='window-dropdown'),
 
     dcc.Graph(
         id='window-rate-graph',
@@ -448,27 +452,29 @@ def draw_param_graph(value):
 @app.callback(
     Output('param-graph', 'figure'),
     Input('param-dropdown', 'value'),
+    Input('window-dropdown', 'value'),
     Input('frame-size-in', 'value'),
     Input('frame-overlap', 'value'),
     Input('frame-slider', 'value'),
     Input('b-in', 'value'),
 )
-def draw_param_graph(value, frame_size, frame_overlap, frame_pos, b):
+def draw_param_graph(param_value, window_value, frame_size, frame_overlap, frame_pos, b):
     global audio_file
     graph = {}
     frame_size = int(frame_size)
     frame_pos = int(frame_pos)
     frame_overlap = int(frame_overlap)
     b = int(b)
-    if value in [None, 'Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth']:
-        b = None
-    if audio_file is not None and value is not None:
+    if audio_file is not None and param_value is not None and window_value is not None:
         audio_file.set_frames(frame_size, frame_overlap)
-        dict = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr,
+        dict_param = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr,
                 'STE': audio_file.ste, 'Spectral Centroid': audio_file.spectral_centroid,
                 'Effective Bandwidth': audio_file.effective_bandwidth,
                 'SFM': audio_file.sfm, 'SCF': audio_file.scf}
-        graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict[value], b), value, frame_pos)
+        dict_window = {'Rectangle': '', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
+        audio_file.b = b
+        audio_file.window_fun = dict_window[window_value]
+        graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict_param[param_value]), param_value, frame_pos)
     return graph
 
 @app.callback(
@@ -492,8 +498,9 @@ def draw_window_graph(value):
     global audio_file
     graph = {}
     if audio_file is not None and value is not None:
-        dict = {'Rectangle': '', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
-        graph = audio_file.draw_window_plot(dict[value])
+        dict_window = {'Rectangle': '', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
+        audio_file.window_fun = dict_window[value]
+        graph = audio_file.draw_window_plot()
     return graph
 
 port = 8050
