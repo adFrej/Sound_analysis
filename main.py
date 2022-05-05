@@ -7,6 +7,7 @@ import dash
 from dash import dcc
 from dash import html
 from dash.dependencies import Input, Output, State
+import dash_daq as daq
 import webbrowser
 import math
 import statistics
@@ -54,12 +55,16 @@ class AudioFile:
         return fig
 
 
-    def draw_window_plot(self):
-        w = self.widmo() / len(self.samples) * 2
-        f = self.freq()
+    def draw_window_plot(self, frame_pos=None):
+        samples_scope = self.samples
+        if frame_pos is not None:
+            samples_scope = samples_scope[frame_pos*(self.frame_length-self.frame_overlap)*self.sample_rate //
+                            1000: ((frame_pos+1)*self.frame_length-frame_pos*self.frame_overlap)*self.sample_rate//1000]
+        w = self.widmo(samples_scope) / len(samples_scope) * 2
+        f = self.freq(samples_scope)
         fig = px.line(x=f, y=w)
-        fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
-                          xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40),
+        fig.update_layout(title="Signal by frequency", yaxis_title="Amplitude",
+                          xaxis_title="frequency [Hz]", showlegend=False, margin=dict(t=40),
                           xaxis=dict(range=[0, 4000]))
         return fig
 
@@ -299,6 +304,12 @@ app.layout = html.Div(children=[
         style_cell={'textAlign': 'center', 'width': '25%'},
     ),
 
+    dash.dash_table.DataTable(
+        id='table-frame-rate',
+        data=[],
+        style_cell={'textAlign': 'center', 'width': '25%'},
+    ),
+
     html.H2('Properties:'),
 
     html.Div(children=['Input frame length [ms]: ',
@@ -358,6 +369,12 @@ app.layout = html.Div(children=[
         id='param-graph',
     ),
 
+    daq.ToggleSwitch(
+        id='frame-toggle-switch',
+        value=False,
+        label='whole signal - current frame',
+    ),
+
     dcc.Graph(
         id='window-rate-graph',
     ),
@@ -392,27 +409,34 @@ audio_file = None
     Output('table-frame', 'data'),
     Output('frame-slider', 'value'),
     Output('table-gen', 'data'),
+    Output('table-frame-rate', 'data'),
     Input('upload-file', 'contents'),
     State('upload-file', 'filename'),
     State('upload-file', 'last_modified'),
     Input('frame-slider', 'value'),
     Input('frame-size-in', 'value'),
     Input('frame-overlap', 'value'),
+    Input('window-dropdown', 'value'),
+    Input('b-in', 'value'),
 )
-def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size, frame_overlap):
+def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_pos, frame_size, frame_overlap, window_value, b):
     global audio_file
     frame_pos = int(frame_pos)
     frame_size = int(frame_size)
     frame_overlap = int(frame_overlap)
+    b = int(b)
     time_graph = {}
     n_frames = 0
     table_frame_data = []
     table_gen_data = []
+    table_frame_rate_data = []
     if list_of_contents is not None:
         content_type, content_string = list_of_contents.split(',')
         file = base64.b64decode(content_string)
         file = io.BytesIO(file)
         audio_file = AudioFile(list_of_names, file, frame_size, frame_overlap)
+        audio_file.window_fun = window_value
+        audio_file.b= b
         frame_size=audio_file.frame_length
         frame_overlap=audio_file.frame_overlap
 
@@ -431,6 +455,11 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
                        'ZCR - Zero Crossing Rate': audio_file.fun_over_frames(audio_file.zcr)[frame_pos],
                        'Silent': audio_file.fun_over_frames(audio_file.sr)[frame_pos]}]
 
+        table_frame_rate_data = [{'Spectral centroid': audio_file.fun_over_frames(audio_file.spectral_centroid)[frame_pos],
+                                  'Effective bandwidth': audio_file.fun_over_frames(audio_file.effective_bandwidth)[frame_pos],
+                                  'SFM': audio_file.fun_over_frames(audio_file.sfm)[frame_pos],
+                                  'SCF': audio_file.fun_over_frames(audio_file.scf)[frame_pos]}]
+
         lster_param = audio_file.lster()
 
         table_gen_data = [{'VDR - Volume Dynamic Range': audio_file.vdr(),
@@ -438,7 +467,7 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
                        'VSTD': audio_file.std(),
                        'LSTR - Low Short Time Energy Ratio': str(lster_param) + ' >= 0.15 -> speech' if lster_param >= 0.15 else str(lster_param) + ' < 0.15 -> music'}]
     return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms with overlap: ' + str(frame_overlap) + ' ms.', \
-           n_frames-1, table_frame_data, frame_pos, table_gen_data
+           n_frames-1, table_frame_data, frame_pos, table_gen_data, table_frame_rate_data
 
 @app.callback(
     Output('b-div', 'style'),
@@ -494,14 +523,19 @@ def button_on_click(n_clicks):
 @app.callback(
     Output('window-rate-graph', 'figure'),
     Input('window-dropdown', 'value'),
+    Input('frame-toggle-switch', 'value'),
+    Input('frame-slider', 'value'),
 )
-def draw_window_graph(value):
+def draw_window_graph(window_value, switch_value, frame_pos):
     global audio_file
     graph = {}
-    if audio_file is not None and value is not None:
+    if audio_file is not None and window_value is not None:
         dict_window = {'Rectangle': 'rectangle', 'Hamming': 'hamming', 'Hann': 'hann', 'Blackman': 'blackman'}
-        audio_file.window_fun = dict_window[value]
-        graph = audio_file.draw_window_plot()
+        audio_file.window_fun = dict_window[window_value]
+        if switch_value:
+            graph = audio_file.draw_window_plot(frame_pos)
+        else:
+            graph = audio_file.draw_window_plot()
     return graph
 
 port = 8050
