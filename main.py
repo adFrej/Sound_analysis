@@ -57,7 +57,8 @@ class AudioFile:
         f = self.freq()
         fig = px.line(x=f, y=w)
         fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
-                          xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
+                          xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40),
+                          xaxis=dict(range=[0, 4000]))
         return fig
 
 
@@ -67,7 +68,7 @@ class AudioFile:
         return math.ceil((len(samples_scope) * 1000 / self.sample_rate - self.frame_overlap) // (self.frame_length - self.frame_overlap))
 
 
-    def fun_over_frames(self, fun, samples_scope=None):
+    def fun_over_frames(self, fun, b=None, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
 
@@ -77,11 +78,11 @@ class AudioFile:
         for i in range(n_frames-1):
             scope = samples_scope[i*(self.frame_length-self.frame_overlap)*self.sample_rate //
                             1000: ((i+1)*self.frame_length-i*self.frame_overlap)*self.sample_rate//1000]
-            output[i] = fun(scope)
+            output[i] = fun(scope) if b is None else fun(b, scope)
 
         scope = samples_scope[n_frames*(self.frame_length-self.frame_overlap)*self.sample_rate //
                         1000:]
-        output[-1] = fun(scope)
+        output[-1] = fun(scope) if b is None else fun(b, scope)
         return output
 
 
@@ -155,7 +156,7 @@ class AudioFile:
         if window_fun == "hann":
             return np.abs(np.fft.rfft(samples_scope * np.hanning(len(samples_scope))))
         if window_fun == "blackman":
-            return np.abs(np.fft.rfft(samples_scope * np.blackman(len(samples_scope))))
+            return np.abs(np.fft.rfft(samples_scope *np.blackman(len(samples_scope))))
         return np.abs(np.fft.rfft(samples_scope))
 
     def freq(self, samples_scope=None):
@@ -177,25 +178,34 @@ class AudioFile:
         freq = self.freq(samples_scope)
         return np.sqrt(np.sum(np.square(freq - self.spectral_centroid(samples_scope)) * np.square(widmo)) / np.sum(np.square(widmo)))
 
-    def SFM(self, b, samples_scope=None):
+    def sfm(self, b, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
         widmo = self.widmo(samples_scope)
         freq = self.freq(samples_scope)
-        ih = freq.index(freq[freq > b].min())
-        il = freq.index(freq[freq < b].max())
+        if b > freq.max():
+            b = int(freq.max())
+        ih = np.where(freq == freq[freq >= b].min())[0][0]
+        il = ih-1
+        if il < 0:
+            il += 1
+            ih += 1
         return np.power(np.prod(np.square(widmo[il:ih + 1])), 1 / (freq[ih] - freq[il] + 1)) / np.sum(
             np.square(widmo[il:ih + 1])) * (freq[ih] - freq[il] + 1)
 
-    def SCF(self, b, samples_scope=None):
+    def scf(self, b, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
         widmo = self.widmo(samples_scope)
         freq = self.freq(samples_scope)
         m = np.max(np.square(widmo))
-        ih = freq.index(freq[freq > b].min())
-        il = freq.index(freq[freq < b].max())
-
+        if b > freq.max():
+            b = int(freq.max())
+        ih = np.where(freq == freq[freq >= b].min())[0][0]
+        il = ih-1
+        if il < 0:
+            il += 1
+            ih += 1
         return m * (freq[ih] - freq[il] + 1) / np.sum(np.square(widmo[il:ih + 1]))
 
 
@@ -326,7 +336,16 @@ app.layout = html.Div(children=[
 
     html.H2('Frame-level statistics over time:'),
 
-    dcc.Dropdown(['Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth'], id='param-dropdown'),
+    dcc.Dropdown(['Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth', 'SFM', 'SCF'], id='param-dropdown'),
+
+    html.Div(children=['Input frequency band: ',
+                       dcc.Input(
+                           id='b-in',
+                           value='20',
+                           type='number',
+                           min=0,
+                           style={'width': '50px'},),
+                       ], id='b-div'),
 
     dcc.Graph(
         id='param-graph',
@@ -416,6 +435,15 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms with overlap: ' + str(frame_overlap) + ' ms.', \
            n_frames-1, table_frame_data, frame_pos, table_gen_data
 
+@app.callback(
+    Output('b-div', 'style'),
+    Input('param-dropdown', 'value'),
+)
+def draw_param_graph(value):
+    if value in [None, 'Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth']:
+        return {'display': 'none'}
+    else:
+        return {'display': 'block'}
 
 @app.callback(
     Output('param-graph', 'figure'),
@@ -423,21 +451,25 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     Input('frame-size-in', 'value'),
     Input('frame-overlap', 'value'),
     Input('frame-slider', 'value'),
+    Input('b-in', 'value'),
 )
-def draw_param_graph(value, frame_size, frame_overlap, frame_pos):
+def draw_param_graph(value, frame_size, frame_overlap, frame_pos, b):
     global audio_file
     graph = {}
     frame_size = int(frame_size)
     frame_pos = int(frame_pos)
     frame_overlap = int(frame_overlap)
+    b = int(b)
+    if value in [None, 'Volume', 'ZCR', 'STE', 'Spectral Centroid', 'Effective Bandwidth']:
+        b = None
     if audio_file is not None and value is not None:
         audio_file.set_frames(frame_size, frame_overlap)
         dict = {'Volume': audio_file.volume, 'ZCR': audio_file.zcr,
                 'STE': audio_file.ste, 'Spectral Centroid': audio_file.spectral_centroid,
-                'Effective Bandwidth': audio_file.effective_bandwidth}
-        graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict[value]), value, frame_pos)
+                'Effective Bandwidth': audio_file.effective_bandwidth,
+                'SFM': audio_file.sfm, 'SCF': audio_file.scf}
+        graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict[value], b), value, frame_pos)
     return graph
-
 
 @app.callback(
     Output('download-csv', 'data'),
