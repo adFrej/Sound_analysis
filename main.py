@@ -200,19 +200,21 @@ class AudioFile:
 
 
     def saveCSV(self, path = None):
-        header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'isSilent']
+        header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'spectralCentroid', 'effectiveBandwdith', 'isSilent']
 
         start = np.arange(0,  len(self.samples)/self.sample_rate*1000 -
                           self.frame_length+1, self.frame_length-self.frame_overlap)
         end = np.append(np.arange(self.frame_length, len(self.samples)/self.sample_rate*1000 - self.frame_length +
                         self.frame_overlap,  self.frame_length-self.frame_overlap), len(self.samples)/self.sample_rate*1000)
 
-        vol = self.volume()
-        ste_ = self.ste()
-        zcr = self.volume()
-        silent = self.sr()
+        vol = self.fun_over_frames(self.volume)
+        ste_ = self.fun_over_frames(self.ste)
+        zcr = self.fun_over_frames(self.zcr)
+        silent = self.fun_over_frames(self.sr)
+        spectralC = self.fun_over_frames(self.spectral_centroid)
+        effectiveB = self.fun_over_frames(self.effective_bandwidth)
 
-        data = np.array([start, end, vol, ste_, zcr, silent]).T
+        data = np.array([start, end, vol, ste_, zcr, spectralC, effectiveB, silent]).T
 
         if path is not None:
             with open(path, 'w', encoding='UTF8', newline='') as f:
