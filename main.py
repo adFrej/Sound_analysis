@@ -44,7 +44,6 @@ class AudioFile:
                           xaxis_title="Time [ms]", showlegend=False, margin=dict(t=40))
         return fig
 
-
     def draw_param_plot(self, values, name, marker=None):
         fig = px.line(values)
         if marker is not None:
@@ -53,7 +52,6 @@ class AudioFile:
                           xaxis_title="Frames", showlegend=False, margin=dict(t=40))
         fig.update_xaxes(dtick=1)
         return fig
-
 
     def draw_window_plot(self, frame_pos=None):
         samples_scope = self.samples
@@ -68,12 +66,10 @@ class AudioFile:
                           xaxis=dict(range=[0, 4000]))
         return fig
 
-
     def count_frames(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
         return math.ceil((len(samples_scope) * 1000 / self.sample_rate - self.frame_overlap) // (self.frame_length - self.frame_overlap))
-
 
     def fun_over_frames(self, fun, samples_scope=None):
         if samples_scope is None:
@@ -92,20 +88,17 @@ class AudioFile:
         output[-1] = fun(scope)
         return output
 
-
     def volume(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
 
         return np.sqrt(np.sum(samples_scope*samples_scope)/len(samples_scope))
 
-
     def ste(self, samples_scope=None):
         if samples_scope is None:
             samples_scope = self.samples
 
         return np.sum(samples_scope*samples_scope)/len(samples_scope)
-
 
     def zcr(self, samples_scope=None):
         if samples_scope is None:
@@ -114,27 +107,22 @@ class AudioFile:
         return np.sum(np.abs(np.subtract(np.sign(samples_scope[1:]), np.sign(samples_scope[:-1]))
                              )) * self.sample_rate / len(samples_scope) / 4
 
-
     def sr(self, samples_scope=None):
         if samples_scope is None:
             samples_scope=self.samples
 
         return self.volume(samples_scope=samples_scope) < 100 and self.zcr(samples_scope=samples_scope) > 300
 
-
     def vdr(self):
         v = self.fun_over_frames(self.volume)
         return (max(v) - min(v)) / max(v)
-
 
     def mean(self):
         vol = self.fun_over_frames(self.volume)
         return sum(vol)/len(vol)
 
-
     def std(self):
         return statistics.stdev(self.fun_over_frames(self.volume))
-
 
     def lster(self):
 
@@ -152,7 +140,6 @@ class AudioFile:
                                                            self.frame_length: min((i+1)*self.frame_length, len(self.samples))]) > 0)
 
         return sum/(2*i)
-
 
     def widmo(self, samples_scope=None):
         if samples_scope is None:
@@ -214,7 +201,6 @@ class AudioFile:
             il += 1
             ih += 1
         return m * (freq[ih] - freq[il] + 1) / np.sum(np.square(widmo[il:ih + 1]))
-
 
     def saveCSV(self, path = None):
         header = ['frame_start', 'frame_end', 'volume', 'ste', 'zcr', 'isSilent', 'fc', 'bw', 'scf'+str(self.b)+str(self.window_fun)]
@@ -402,6 +388,7 @@ app.layout = html.Div(children=[
 
 audio_file = None
 
+
 @app.callback(
     Output('time-graph', 'figure'),
     Output('frame-size-out', 'children'),
@@ -469,6 +456,7 @@ def draw_graph_from_file(list_of_contents, list_of_names, list_of_dates, frame_p
     return time_graph, 'Selected frame length: ' + str(frame_size) + ' ms with overlap: ' + str(frame_overlap) + ' ms.', \
            n_frames-1, table_frame_data, frame_pos, table_gen_data, table_frame_rate_data
 
+
 @app.callback(
     Output('b-div', 'style'),
     Input('param-dropdown', 'value'),
@@ -478,6 +466,7 @@ def draw_param_graph(value):
         return {'display': 'none'}
     else:
         return {'display': 'block'}
+
 
 @app.callback(
     Output('param-graph', 'figure'),
@@ -507,6 +496,7 @@ def draw_param_graph(param_value, window_value, frame_size, frame_overlap, frame
         graph = audio_file.draw_param_plot(audio_file.fun_over_frames(dict_param[param_value]), param_value, frame_pos)
     return graph
 
+
 @app.callback(
     Output('download-csv', 'data'),
     Input('download-button', 'n_clicks'),
@@ -519,6 +509,7 @@ def button_on_click(n_clicks):
         file = audio_file.saveCSV()
         download_data = dict(content=file, filename=str.replace(audio_file.file_name, '.wav', '.csv'))
     return download_data
+
 
 @app.callback(
     Output('window-rate-graph', 'figure'),
@@ -538,25 +529,17 @@ def draw_window_graph(window_value, switch_value, frame_pos):
             graph = audio_file.draw_window_plot()
     return graph
 
+
 port = 8050
 
 
 def open_browser():
     webbrowser.open_new("http://localhost:{}".format(port))
 
+
 app.title = 'Sound analysis'
+
 
 if __name__ == '__main__':
     # open_browser()
-    app.run_server(debug=True)
-    # pp = AudioFile('dun','./dun.wav',0,0)
-    # [samples, sampling_rate] = pp.read_file()
-    # print(len(samples),"samples ",samples)
-    # w = np.abs(widmo(samples, "blackman"))/len(samples)*2
-    # f = freq(len(samples), 1/sampling_rate)
-    # print(len(w),"widmo ",w)
-    # print(len(f),"frequ ",f)
-    # fig = px.line(x=f, y=w)
-    # fig.update_layout(title="Widmo rzeczywiste", yaxis_title="amplituda widma",
-    #                   xaxis_title="częstotliwość [Hz]", showlegend=False, margin=dict(t=40))
-    # fig.show()
+    app.run_server(debug=False)
